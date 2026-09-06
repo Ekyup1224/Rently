@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: stay-backend
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5433/stay}
+    username: ${POSTGRES_USER:stay}
+    password: ${POSTGRES_PASSWORD:stay_dev_password}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema. Hibernate only verifies that entities match it.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+      timeout: 2s
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+  error:
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+app:
+  cors:
+    # Vite admin/owner/hotel portal and Next.js guest PWA
+    allowed-origins:
+      - http://localhost:5173
+      - http://localhost:3000
+  security:
+    jwt:
+      issuer: stay-backend
+      # HS256 secret; must be >= 32 bytes. Override in every non-dev environment.
+      secret: ${JWT_SECRET:dev-only-secret-change-me-at-least-32-bytes-long!!}
+      access-token-ttl: 15m
+      refresh-token-ttl: 30d
+  otp:
+    code-length: 6
+    ttl: 5m
+    max-verify-attempts: 5
+    resend-cooldown: 60s
+    max-per-hour: 5
+    lockout: 15m
+    # Dev convenience: OTP codes are logged instead of sent by SMS.
+    delivery: log
+  bootstrap:
+    super-admin:
+      enabled: true
+      phone: ${BOOTSTRAP_ADMIN_PHONE:+97699000000}
+      email: ${BOOTSTRAP_ADMIN_EMAIL:admin@stay.local}
+      password: ${BOOTSTRAP_ADMIN_PASSWORD:ChangeMe123!}
+
+logging:
+  level:
+    mn.innex.stay: DEBUG

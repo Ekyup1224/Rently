@@ -1,0 +1,254 @@
+# Step 1 API — accounts, sessions, roles, audit
+#
+# Works with the VS Code REST Client and JetBrains HTTP Client. Stands in for
+# Swagger UI until springdoc supports Spring Boot 4.
+#
+# Run in order: the OTP flow populates @accessToken and @refreshToken.
+# In development the code is written to the backend log, not sent by SMS:
+#   [DEV SMS] to=+976******33 body=418207 is your verification code...
+
+@host = http://localhost:8080
+@api = {{host}}/api/v1
+@phone = 99112233
+@adminEmail = admin@stay.local
+@adminPassword = ChangeMe123!
+
+### Health
+GET {{host}}/actuator/health
+
+###
+# ─── Phone-first authentication ────────────────────────────────────────────────
+# This is both registration and sign-in. An unknown number gets an account here;
+# the account activates when it verifies its first code.
+
+### Request a login code
+POST {{api}}/auth/otp/request
+Content-Type: application/json
+
+{
+  "phone": "{{phone}}",
+  "locale": "mn"
+}
+
+### Verify the code and open a session (paste the code from the backend log)
+# @name verifyOtp
+POST {{api}}/auth/otp/verify
+Content-Type: application/json
+
+{
+  "phone": "{{phone}}",
+  "code": "000000",
+  "deviceLabel": "http-client"
+}
+
+@accessToken = {{verifyOtp.response.body.accessToken}}
+@refreshToken = {{verifyOtp.response.body.refreshToken}}
+
+### The signed-in account, including its role grants
+GET {{api}}/auth/me
+Authorization: Bearer {{accessToken}}
+
+###
+# ─── Email + password (secondary path) ─────────────────────────────────────────
+
+### Register with email and password — returns a code challenge, not a session:
+### the phone still has to be verified before first sign-in
+POST {{api}}/auth/register
+Content-Type: application/json
+
+{
+  "phone": "88001122",
+  "email": "guest@example.com",
+  "password": "SuperSecret123",
+  "fullName": "Bat Bold",
+  "locale": "mn"
+}
+
+### Sign in with email and password
+# @name login
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}",
+  "deviceLabel": "http-client"
+}
+
+@adminToken = {{login.response.body.accessToken}}
+
+###
+# ─── Session lifecycle ─────────────────────────────────────────────────────────
+
+### Rotate the refresh token. The old one dies here; presenting it again is
+### treated as replay and ends every session for the user.
+POST {{api}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Revoke one session. Other devices keep working.
+POST {{api}}/auth/logout
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### Start a password reset. The response is identical whether or not the number
+### has an account, so this cannot be used to test for membership.
+POST {{api}}/auth/password/forgot
+Content-Type: application/json
+
+{
+  "phone": "{{phone}}"
+}
+
+### Complete the reset. Signs every device out, since the old password may be known.
+POST {{api}}/auth/password/reset
+Content-Type: application/json
+
+{
+  "phone": "{{phone}}",
+  "code": "000000",
+  "newPassword": "BrandNewSecret123"
+}
+
+###
+# ─── Own account ───────────────────────────────────────────────────────────────
+
+### Profile
+GET {{api}}/users/me
+Authorization: Bearer {{accessToken}}
+
+### Partial update — null fields are left untouched. Phone is not editable here.
+PATCH {{api}}/users/me
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "fullName": "Bat Bold",
+  "email": "bat.bold@example.com",
+  "locale": "en"
+}
+
+### Set or change the password. currentPassword is required only if one exists.
+POST {{api}}/users/me/password
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "newPassword": "AnotherSecret123"
+}
+
+###
+# ─── Becoming a host ───────────────────────────────────────────────────────────
+# Submitting grants nothing. A SUPER_ADMIN decides in the Step 4 approval queue.
+
+### Apply as a house owner
+POST {{api}}/users/me/host-applications
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "requestedRole": "HOUSE_OWNER",
+  "note": "Two-bedroom apartment in Sukhbaatar district"
+}
+
+### Apply as a hotel — organizationName is required for this role
+POST {{api}}/users/me/host-applications
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "requestedRole": "HOTEL_MANAGER",
+  "organizationName": "Blue Sky Hotel LLC",
+  "organizationRegistrationNo": "1234567",
+  "note": "42 rooms, 4 room types"
+}
+
+### My applications
+GET {{api}}/users/me/host-applications
+Authorization: Bearer {{accessToken}}
+
+### Withdraw a pending application
+POST {{api}}/users/me/host-applications/00000000-0000-7000-8000-000000000000/withdraw
+Authorization: Bearer {{accessToken}}
+
+###
+# ─── Super Admin ───────────────────────────────────────────────────────────────
+# Everything below needs SUPER_ADMIN. Use {{adminToken}} from the login above.
+
+### Paged user list, shaped for AG Grid
+GET {{api}}/admin/users?page=0&size=25&sort=createdAt,desc
+Authorization: Bearer {{adminToken}}
+
+### Search by phone, email or name fragment
+GET {{api}}/admin/users?q=9911&page=0&size=25
+Authorization: Bearer {{adminToken}}
+
+### Filter by status and role
+GET {{api}}/admin/users?status=ACTIVE&role=HOUSE_OWNER&page=0&size=25
+Authorization: Bearer {{adminToken}}
+
+### One user
+GET {{api}}/admin/users/00000000-0000-7000-8000-000000000000
+Authorization: Bearer {{adminToken}}
+
+### Suspend an account — also revokes all of its sessions
+PATCH {{api}}/admin/users/00000000-0000-7000-8000-000000000000/status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "SUSPENDED",
+  "reason": "Chargeback investigation"
+}
+
+### Set identity-verification state
+PATCH {{api}}/admin/users/00000000-0000-7000-8000-000000000000/kyc-status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "kycStatus": "VERIFIED"
+}
+
+### Grant a platform-wide role — organizationId must be omitted
+POST {{api}}/admin/users/00000000-0000-7000-8000-000000000000/roles
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "role": "HOUSE_OWNER"
+}
+
+### Grant a hotel-side role — organizationId is required
+POST {{api}}/admin/users/00000000-0000-7000-8000-000000000000/roles
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "role": "HOTEL_MANAGER",
+  "organizationId": "00000000-0000-7000-8000-000000000001"
+}
+
+### Revoke a role. The organization goes in the query string, because DELETE with
+### a body is unreliable across proxies. Also ends the user's sessions.
+DELETE {{api}}/admin/users/00000000-0000-7000-8000-000000000000/roles/HOUSE_OWNER
+Authorization: Bearer {{adminToken}}
+
+### Audit log, newest first
+GET {{api}}/admin/audit-logs?page=0&size=50
+Authorization: Bearer {{adminToken}}
+
+### Audit log for one target
+GET {{api}}/admin/audit-logs?targetId=00000000-0000-7000-8000-000000000000
+Authorization: Bearer {{adminToken}}
+
+### Audit log filtered by action and time window
+GET {{api}}/admin/audit-logs?action=USER_ROLE_GRANTED&from=2026-01-01T00:00:00Z
+Authorization: Bearer {{adminToken}}
