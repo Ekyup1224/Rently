@@ -18,6 +18,7 @@
 		<java.version>21</java.version>
 		<!-- Spring Boot 4's parent no longer manages Testcontainers, so pin it here. -->
 		<testcontainers.version>1.21.3</testcontainers.version>
+		<aws.sdk.version>2.46.7</aws.sdk.version>
 	</properties>
 
 	<dependencyManagement>
@@ -26,6 +27,13 @@
 				<groupId>org.testcontainers</groupId>
 				<artifactId>testcontainers-bom</artifactId>
 				<version>${testcontainers.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>software.amazon.awssdk</groupId>
+				<artifactId>bom</artifactId>
+				<version>${aws.sdk.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
@@ -79,6 +87,13 @@
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
+		</dependency>
+		<!-- S3-compatible object storage (MinIO in dev, S3 in production) for listing
+		     photos. Includes the presigner, so uploads go browser-to-bucket and never
+		     transit the API. -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
 		</dependency>
 
 		<dependency>

@@ -25,6 +25,11 @@ spring:
       timeout: 2s
   jackson:
     default-property-inclusion: non_null
+    deserialization:
+      # Jackson 3 rejects a missing JSON field mapped onto a primitive. Defaulting
+      # it instead lets Bean Validation report which field is actually missing,
+      # rather than the client getting an opaque parse error.
+      fail-on-null-for-primitives: false
 
 server:
   port: 8080
@@ -62,6 +67,39 @@ app:
     lockout: 15m
     # Dev convenience: OTP codes are logged instead of sent by SMS.
     delivery: log
+  storage:
+    s3:
+      endpoint: ${S3_ENDPOINT:http://localhost:9000}
+      region: ${S3_REGION:us-east-1}
+      bucket: ${S3_BUCKET:stay-media}
+      access-key: ${S3_ACCESS_KEY:stayminio}
+      secret-key: ${S3_SECRET_KEY:stayminio_dev_password}
+      # MinIO needs path-style addressing; real S3 accepts it too.
+      path-style-access: true
+      public-base-url: ${S3_PUBLIC_BASE_URL:http://localhost:9000/stay-media}
+      presign-ttl: 5m
+      max-photo-bytes: 10485760
+      # Dev convenience: creates the bucket and opens the photo prefix for public
+      # reads. Leave this false in production and front the bucket with a CDN.
+      auto-create-bucket: ${S3_AUTO_CREATE_BUCKET:true}
+  booking:
+    # How long a PENDING_PAYMENT booking holds its dates before the expiry job
+    # releases them.
+    payment-hold: 30m
+    # How long a host has to answer a request-to-book.
+    host-response-window: 24h
+    max-nights-ahead: 540
+    # Mongolian VAT treatment of short-term rentals needs the legal review the
+    # spec calls for, so tax is off until someone qualified says otherwise.
+    tax-percent: 0
+  payments:
+    default-provider: SIMULATED
+    simulated:
+      # Stands in for QPay until merchant credentials exist. MUST be false in
+      # any deployed environment: it exposes an endpoint that marks a payment
+      # settled without money moving.
+      enabled: ${PAYMENTS_SIMULATED_ENABLED:true}
+      callback-secret: ${PAYMENTS_SIMULATED_SECRET:dev-simulated-callback-secret-change-me}
   bootstrap:
     super-admin:
       enabled: true

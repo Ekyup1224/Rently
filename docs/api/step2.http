@@ -1,0 +1,403 @@
+# Step 2 API — listings, calendar, search, bookings, payments
+#
+# Works with the VS Code REST Client and JetBrains HTTP Client.
+# Run docs/api/step1.http first to get tokens, or reuse the flow below.
+#
+# In development the OTP code is written to the backend log, not sent by SMS:
+#   [DEV SMS] to=+976******33 body=418207 is your verification code...
+
+@host = http://localhost:8080
+@api = {{host}}/api/v1
+@ownerPhone = +97611000001
+@guestPhone = +97611000002
+@adminEmail = admin@stay.local
+@adminPassword = ChangeMe123!
+
+# Replace with real ids as you go; the ### blocks capture most of them.
+@propertyId = 00000000-0000-7000-8000-000000000000
+@bookingId = 00000000-0000-7000-8000-000000000000
+@paymentId = 00000000-0000-7000-8000-000000000000
+@photoId = 00000000-0000-7000-8000-000000000000
+
+###
+# ─── Sessions ──────────────────────────────────────────────────────────────────
+
+### Admin (email + password)
+# @name adminLogin
+POST {{api}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{adminEmail}}", "password": "{{adminPassword}}" }
+
+@adminToken = {{adminLogin.response.body.accessToken}}
+
+### Owner: request a code
+POST {{api}}/auth/otp/request
+Content-Type: application/json
+
+{ "phone": "{{ownerPhone}}" }
+
+### Owner: verify (paste the code from the backend log)
+# @name ownerVerify
+POST {{api}}/auth/otp/verify
+Content-Type: application/json
+
+{ "phone": "{{ownerPhone}}", "code": "000000", "deviceLabel": "http-client" }
+
+@ownerToken = {{ownerVerify.response.body.accessToken}}
+@ownerRefresh = {{ownerVerify.response.body.refreshToken}}
+@ownerId = {{ownerVerify.response.body.user.id}}
+
+### Grant HOUSE_OWNER (admin)
+POST {{api}}/admin/users/{{ownerId}}/roles
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "role": "HOUSE_OWNER" }
+
+### Refresh to pick up the new role — role claims are fixed when a token is issued,
+### so the owner endpoints stay 403 until the token is reissued.
+# @name ownerRefreshed
+POST {{api}}/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{ownerRefresh}}" }
+
+@ownerToken = {{ownerRefreshed.response.body.accessToken}}
+
+###
+# ─── Owner: listings ───────────────────────────────────────────────────────────
+
+### Create a draft — only the essentials, so the first screen can save
+# @name createListing
+POST {{api}}/owner/properties
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+  "title": "Ger camp on the Tuul river",
+  "propertyType": "GER",
+  "city": "Ulaanbaatar",
+  "maxGuests": 4
+}
+
+@propertyId = {{createListing.response.body.id}}
+
+### My listings
+GET {{api}}/owner/properties?page=0&size=20
+Authorization: Bearer {{ownerToken}}
+
+### One listing (readinessProblems says what still blocks submitting)
+GET {{api}}/owner/properties/{{propertyId}}
+Authorization: Bearer {{ownerToken}}
+
+### Fill in the rest. Changing latitude/longitude, address or propertyType on a
+### live listing sends it back to PENDING_REVIEW — the response's status says so.
+PATCH {{api}}/owner/properties/{{propertyId}}
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+  "description": "A traditional ger with a wood stove, 40 km from the city.",
+  "addressLine": "Gachuurt valley, plot 14",
+  "district": "Bayanzurkh",
+  "latitude": 47.9405,
+  "longitude": 107.1210,
+  "basePrice": 180000,
+  "cleaningFee": 25000,
+  "minStayNights": 2,
+  "cancellationPolicy": "MODERATE",
+  "instantBook": false,
+  "amenities": ["STOVE_HEATING", "PARKING_FREE", "MOUNTAIN_VIEW", "BBQ_GRILL"],
+  "houseRules": "No shoes inside the ger."
+}
+
+###
+# ─── Owner: photos (browser-to-bucket) ─────────────────────────────────────────
+
+### Step 1: a presigned URL. Image bytes never pass through the API.
+# @name uploadUrl
+POST {{api}}/owner/properties/{{propertyId}}/photos/upload-url
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{ "contentType": "image/jpeg", "sizeBytes": 204800 }
+
+### Step 2: PUT the file to uploadUrl with a matching Content-Type header.
+### (Do this with curl; an HTTP client cannot easily send a binary body here.)
+###   curl -X PUT -H 'Content-Type: image/jpeg' --data-binary @photo.jpg '<uploadUrl>'
+
+### Step 3: register it. Storage is asked whether the object really exists first.
+POST {{api}}/owner/properties/{{propertyId}}/photos
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{ "storageKey": "{{uploadUrl.response.body.storageKey}}", "altText": "The ger at dusk" }
+
+### Reorder and set the cover
+PATCH {{api}}/owner/properties/{{propertyId}}/photos/order
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{ "photoIdsInOrder": ["{{photoId}}"], "coverPhotoId": "{{photoId}}" }
+
+### Remove a photo (also deletes the stored object)
+DELETE {{api}}/owner/properties/{{propertyId}}/photos/{{photoId}}
+Authorization: Bearer {{ownerToken}}
+
+###
+# ─── Owner: calendar ───────────────────────────────────────────────────────────
+
+### The calendar. Unlike the public one, this distinguishes BOOKED from BLOCKED.
+GET {{api}}/owner/properties/{{propertyId}}/calendar?from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{ownerToken}}
+
+### Weekend premium across a season: `to` is inclusive here, unlike a stay's check-out
+PUT {{api}}/owner/properties/{{propertyId}}/calendar
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{
+  "from": "2026-10-01",
+  "to": "2026-10-31",
+  "weekdays": ["FRIDAY", "SATURDAY"],
+  "price": 225000
+}
+
+### Block a range
+PUT {{api}}/owner/properties/{{propertyId}}/calendar
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{ "from": "2026-12-24", "to": "2026-12-26", "blocked": true }
+
+### A three-night minimum over a holiday weekend
+PUT {{api}}/owner/properties/{{propertyId}}/calendar
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{ "from": "2026-11-20", "to": "2026-11-22", "minStayNights": 3 }
+
+### Back to the listing's defaults
+DELETE {{api}}/owner/properties/{{propertyId}}/calendar?from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{ownerToken}}
+
+###
+# ─── Review ────────────────────────────────────────────────────────────────────
+
+### Submit for review (refuses an incomplete listing, naming what is missing)
+POST {{api}}/owner/properties/{{propertyId}}/submit
+Authorization: Bearer {{ownerToken}}
+
+### The admin queue
+GET {{api}}/admin/properties?status=PENDING_REVIEW&page=0&size=25
+Authorization: Bearer {{adminToken}}
+
+### Approve
+PATCH {{api}}/admin/properties/{{propertyId}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "status": "APPROVED" }
+
+### Reject — a reason is required, because the owner has to know what to fix
+PATCH {{api}}/admin/properties/{{propertyId}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{ "status": "REJECTED", "reason": "The photos do not show the interior." }
+
+### Owner takes a live listing out of search without losing it
+POST {{api}}/owner/properties/{{propertyId}}/pause
+Authorization: Bearer {{ownerToken}}
+
+### And back
+POST {{api}}/owner/properties/{{propertyId}}/resume
+Authorization: Bearer {{ownerToken}}
+
+###
+# ─── Guest: the catalogue (no account needed) ──────────────────────────────────
+
+### Full-text search
+GET {{api}}/listings/search?q=ger&city=Ulaanbaatar&sort=relevance
+
+### With dates: only listings free for the whole range come back, filtered in the
+### same query so paging stays correct
+GET {{api}}/listings/search?checkIn=2026-10-01&checkOut=2026-10-04&guests=2&sort=price_asc
+
+### Amenities are AND-ed; a listing must advertise all of them
+GET {{api}}/listings/search?amenities=STOVE_HEATING&amenities=PARKING_FREE
+
+### Instant-book only, under a price cap
+GET {{api}}/listings/search?instantBook=true&maxPrice=200000
+
+### Near a point (all three parameters are required together)
+GET {{api}}/listings/search?latitude=47.9188&longitude=106.9176&radiusKm=25&sort=distance
+
+### Filter values for building the search UI
+GET {{api}}/listings/filters
+
+### The public listing page (no street address, host's first name only)
+GET {{api}}/listings/{{propertyId}}
+
+### Public calendar — booked nights report as BLOCKED, not BOOKED
+GET {{api}}/listings/{{propertyId}}/availability?from=2026-10-01&to=2026-10-31
+
+### Price a stay without creating anything. This is the number the guest is shown,
+### and POST /bookings recomputes it from the same code.
+POST {{api}}/listings/{{propertyId}}/quote
+Content-Type: application/json
+
+{ "checkIn": "2026-10-01", "checkOut": "2026-10-04", "guests": 2 }
+
+###
+# ─── Guest: booking ────────────────────────────────────────────────────────────
+
+### Guest session
+POST {{api}}/auth/otp/request
+Content-Type: application/json
+
+{ "phone": "{{guestPhone}}" }
+
+### Verify
+# @name guestVerify
+POST {{api}}/auth/otp/verify
+Content-Type: application/json
+
+{ "phone": "{{guestPhone}}", "code": "000000", "deviceLabel": "http-client" }
+
+@guestToken = {{guestVerify.response.body.accessToken}}
+
+### Book. No prices in the request — the server prices it. An instant-book listing
+### returns PENDING_PAYMENT; anything else returns PENDING_HOST_APPROVAL.
+# @name createBooking
+POST {{api}}/bookings
+Content-Type: application/json
+Authorization: Bearer {{guestToken}}
+
+{
+  "propertyId": "{{propertyId}}",
+  "checkIn": "2026-10-01",
+  "checkOut": "2026-10-04",
+  "guests": 2,
+  "message": "Arriving late evening."
+}
+
+@bookingId = {{createBooking.response.body.id}}
+
+### My trips
+GET {{api}}/bookings?scope=upcoming
+Authorization: Bearer {{guestToken}}
+
+### One booking
+GET {{api}}/bookings/{{bookingId}}
+Authorization: Bearer {{guestToken}}
+
+### Cancel — the refund follows the policy snapshotted when it was booked
+POST {{api}}/bookings/{{bookingId}}/cancel
+Content-Type: application/json
+Authorization: Bearer {{guestToken}}
+
+{ "reason": "Change of plans" }
+
+###
+# ─── Host: responding ──────────────────────────────────────────────────────────
+
+### The inbox (host sees their payout and the commission, never the guest's total)
+GET {{api}}/owner/bookings?scope=pending
+Authorization: Bearer {{ownerToken}}
+
+### Accept — the guest then has the payment window to pay
+POST {{api}}/owner/bookings/{{bookingId}}/approve
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{ "note": "See you then." }
+
+### Decline
+POST {{api}}/owner/bookings/{{bookingId}}/decline
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{ "note": "The ger is being re-felted that week." }
+
+### Host cancellation — the guest is refunded in full regardless of policy
+POST {{api}}/owner/bookings/{{bookingId}}/cancel
+Content-Type: application/json
+Authorization: Bearer {{ownerToken}}
+
+{ "reason": "Water supply failure" }
+
+### Earnings, attributed to when each stay ended
+GET {{api}}/owner/earnings/summary?from=2026-01-01&to=2026-12-31
+Authorization: Bearer {{ownerToken}}
+
+###
+# ─── Payment ───────────────────────────────────────────────────────────────────
+
+### Open a charge. Send an Idempotency-Key and reuse it on retries; a repeat
+### returns the existing payment rather than a second invoice.
+# @name startPayment
+POST {{api}}/bookings/{{bookingId}}/payments
+Content-Type: application/json
+Authorization: Bearer {{guestToken}}
+Idempotency-Key: checkout-{{bookingId}}
+
+{ "provider": "SIMULATED" }
+
+@paymentId = {{startPayment.response.body.id}}
+
+### Poll it. QR rails settle out of band, so the client watches this.
+GET {{api}}/bookings/{{bookingId}}/payments/{{paymentId}}
+Authorization: Bearer {{guestToken}}
+
+### Every attempt on the booking, refunds included
+GET {{api}}/bookings/{{bookingId}}/payments
+Authorization: Bearer {{guestToken}}
+
+### Development only: settles a simulated payment by feeding a properly signed
+### callback through the same handler a real provider's callback goes through.
+### This endpoint does not exist when app.payments.simulated.enabled=false.
+POST {{api}}/bookings/{{bookingId}}/payments/{{paymentId}}/simulate-settlement
+Authorization: Bearer {{guestToken}}
+
+### A provider callback. Public by necessity, authenticated by signature — an
+### unsigned or mis-signed body is refused with 401 and nothing is applied.
+POST {{api}}/payments/callbacks/simulated
+Content-Type: application/json
+x-simulated-signature: deadbeef
+
+{ "eventId": "evt-1", "invoiceId": "SIM-...", "status": "PAID" }
+
+###
+# ─── Commission ────────────────────────────────────────────────────────────────
+
+### History. Rules are never edited, so this is a record, not a settings list.
+GET {{api}}/admin/commission-rules
+Authorization: Bearer {{adminToken}}
+
+### A new rate, superseding the current one from this moment. Existing bookings
+### keep the rule they were priced under.
+POST {{api}}/admin/commission-rules
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "scope": "GLOBAL",
+  "hostFeePercent": 12,
+  "guestFeePercent": 3,
+  "note": "Raised after the launch promotion ended"
+}
+
+### A different rate for one property type
+POST {{api}}/admin/commission-rules
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "scope": "PROPERTY_TYPE",
+  "category": "GER",
+  "hostFeePercent": 8,
+  "guestFeePercent": 0,
+  "note": "Lower rate to attract ger camps"
+}

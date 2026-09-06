@@ -6,9 +6,15 @@ import { RequireRole } from './auth/RequireRole'
 import { AccountPage } from './pages/AccountPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { AuditLogPage } from './pages/admin/AuditLogPage'
+import { CommissionPage } from './pages/admin/CommissionPage'
+import { ListingReviewPage } from './pages/admin/ListingReviewPage'
 import { UsersPage } from './pages/admin/UsersPage'
 import { InventoryPage } from './pages/hotel/InventoryPage'
+import { BookingsPage } from './pages/owner/BookingsPage'
+import { CalendarPage } from './pages/owner/CalendarPage'
+import { EarningsPage } from './pages/owner/EarningsPage'
 import { PropertiesPage } from './pages/owner/PropertiesPage'
+import { PropertyEditorPage } from './pages/owner/PropertyEditorPage'
 import type { Role } from './types'
 
 const ALL_SIGNED_IN: Role[] = ['CLIENT', 'HOUSE_OWNER', 'HOTEL_MANAGER', 'HOTEL_STAFF', 'SUPER_ADMIN']
@@ -34,8 +40,32 @@ export default function App() {
             element={<RequireRole allow={['HOUSE_OWNER']}><PropertiesPage /></RequireRole>}
           />
           <Route
+            path="properties/:propertyId"
+            element={<RequireRole allow={['HOUSE_OWNER']}><PropertyEditorPage /></RequireRole>}
+          />
+          <Route
+            path="properties/:propertyId/calendar"
+            element={<RequireRole allow={['HOUSE_OWNER']}><CalendarPage /></RequireRole>}
+          />
+          <Route
+            path="bookings"
+            element={<RequireRole allow={['HOUSE_OWNER']}><BookingsPage /></RequireRole>}
+          />
+          <Route
+            path="earnings"
+            element={<RequireRole allow={['HOUSE_OWNER']}><EarningsPage /></RequireRole>}
+          />
+          <Route
             path="hotel/inventory"
             element={<RequireRole allow={HOTEL_SIDE}><InventoryPage /></RequireRole>}
+          />
+          <Route
+            path="admin/listings"
+            element={<RequireRole allow={['SUPER_ADMIN']}><ListingReviewPage /></RequireRole>}
+          />
+          <Route
+            path="admin/commission"
+            element={<RequireRole allow={['SUPER_ADMIN']}><CommissionPage /></RequireRole>}
           />
           <Route
             path="admin/users"

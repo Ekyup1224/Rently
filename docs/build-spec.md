@@ -2,6 +2,7 @@
 
 > Product name: **TBD** (deliberately left unnamed for now; `[APP NAME]` placeholders removed).
 > Status: spec of record. Sections 1–9 are design; section 10 is the master prompt handed to the coding assistant.
+> Build progress and the decisions taken along the way are in the [README](../README.md).
 
 ## 1. Vision & positioning
 
@@ -125,8 +126,8 @@ listings/static content management · audit log.
 
 Demoable at every stage:
 
-1. **Foundations** — auth, roles, DB schema, empty admin shell.
-2. **House rental loop** — Owner listing CRUD + Client search/booking/payment, houses only. Shippable v0 on its own.
+1. **Foundations** — auth, roles, DB schema, empty admin shell. **Done 2026-09-06.**
+2. **House rental loop** — Owner listing CRUD + Client search/booking/payment, houses only. Shippable v0 on its own. **Done 2026-09-06.**
 3. **Hotel loop** — Hotel/room-type CRUD + inventory calendar + Client hotel booking; unify search across both supply types.
 4. **Admin console** — approvals, commission config, payment oversight, analytics, disputes.
 5. **Polish** — messaging, reviews, payout automation, i18n, mobile wrap.

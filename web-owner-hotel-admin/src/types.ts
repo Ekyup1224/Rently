@@ -81,3 +81,138 @@ export interface ApiError {
   fieldErrors?: { field: string; message: string }[]
   timestamp: string
 }
+
+// --- Step 2: listings, bookings, payments -----------------------------------
+
+export type PropertyType =
+  | 'APARTMENT' | 'HOUSE' | 'GER' | 'CABIN' | 'VILLA' | 'STUDIO' | 'TOWNHOUSE' | 'GUESTHOUSE'
+
+export type PropertyStatus =
+  | 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'PAUSED' | 'SUSPENDED'
+
+export type CancellationPolicy = 'FLEXIBLE' | 'MODERATE' | 'STRICT'
+
+export interface Photo {
+  id: string
+  url: string
+  altText?: string
+  sortOrder: number
+  cover: boolean
+  width?: number
+  height?: number
+}
+
+export interface Property {
+  id: string
+  ownerId: string
+  title: string
+  description?: string
+  propertyType: PropertyType
+  maxGuests: number
+  bedrooms: number
+  beds: number
+  bathrooms: number
+  addressLine?: string
+  district?: string
+  city: string
+  country: string
+  latitude?: number
+  longitude?: number
+  amenities: string[]
+  houseRules?: string
+  checkInFrom?: string
+  checkOutBy?: string
+  basePrice: number
+  cleaningFee: number
+  currency: string
+  minStayNights: number
+  maxStayNights?: number
+  cancellationPolicy: CancellationPolicy
+  instantBook: boolean
+  status: PropertyStatus
+  rejectionReason?: string
+  /** What still blocks submitting for review; empty when ready. */
+  readinessProblems: string[]
+  photos: Photo[]
+  publishedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type DayStatus = 'AVAILABLE' | 'BLOCKED' | 'BOOKED'
+
+export interface CalendarDay {
+  date: string
+  status: DayStatus
+  price: number
+  /** True when `price` comes from a calendar override rather than the base price. */
+  overridden: boolean
+  minStay?: number
+}
+
+export type BookingStatus =
+  | 'PENDING_HOST_APPROVAL' | 'PENDING_PAYMENT' | 'CONFIRMED' | 'CHECKED_IN'
+  | 'CHECKED_OUT' | 'COMPLETED' | 'DECLINED' | 'EXPIRED'
+  | 'CANCELLED_BY_GUEST' | 'CANCELLED_BY_HOST'
+
+export type BookingPaymentStatus =
+  | 'UNPAID' | 'PROCESSING' | 'PAID' | 'PARTIALLY_REFUNDED' | 'REFUNDED' | 'FAILED'
+
+export interface Booking {
+  id: string
+  reference: string
+  status: BookingStatus
+  paymentStatus: BookingPaymentStatus
+  checkIn: string
+  checkOut: string
+  nights: number
+  guestCount: number
+  currency: string
+  nightlySubtotal: number
+  cleaningFee: number
+  /** Guest-side only; absent on the host's view. */
+  guestServiceFee?: number
+  tax: number
+  /** Guest-side only. */
+  total?: number
+  /** Host-side only. */
+  hostCommission?: number
+  /** Host-side only. */
+  hostPayout?: number
+  cancellationPolicy: CancellationPolicy
+  guestMessage?: string
+  hostResponseNote?: string
+  refundAmount?: number
+  cancellationReason?: string
+  expiresAt?: string
+  confirmedAt?: string
+  createdAt: string
+  listing?: { id: string; title: string; city: string; district?: string; coverPhotoUrl?: string }
+  counterpartyName?: string
+  viewer: 'GUEST' | 'HOST'
+}
+
+export interface EarningsSummary {
+  from: string
+  to: string
+  currency: string
+  earnedFromCompletedStays: number
+  confirmedUpcoming: number
+  commissionWithheld: number
+  completedStays: number
+  upcomingStays: number
+  byMonth: { month: string; earned: number; stays: number }[]
+}
+
+export interface CommissionRule {
+  id: string
+  scope: 'GLOBAL' | 'PROPERTY_TYPE' | 'HOTEL'
+  category?: string
+  hostFeePercent: number
+  guestFeePercent: number
+  effectiveFrom: string
+  /** Null means this is the rule currently in force. */
+  effectiveTo?: string
+  note?: string
+  createdAt: string
+}

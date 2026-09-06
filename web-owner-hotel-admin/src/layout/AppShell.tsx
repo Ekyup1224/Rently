@@ -17,8 +17,12 @@ interface NavItem {
 const NAV: NavItem[] = [
   { key: '/', label: 'Overview', allow: ['HOUSE_OWNER', 'HOTEL_MANAGER', 'HOTEL_STAFF', 'SUPER_ADMIN'] },
   { key: '/properties', label: 'Properties', allow: ['HOUSE_OWNER'] },
+  { key: '/bookings', label: 'Reservations', allow: ['HOUSE_OWNER'] },
+  { key: '/earnings', label: 'Earnings', allow: ['HOUSE_OWNER'] },
   { key: '/hotel/inventory', label: 'Rates & inventory', allow: ['HOTEL_MANAGER', 'HOTEL_STAFF'] },
+  { key: '/admin/listings', label: 'Listing review', allow: ['SUPER_ADMIN'] },
   { key: '/admin/users', label: 'Users', allow: ['SUPER_ADMIN'] },
+  { key: '/admin/commission', label: 'Commission', allow: ['SUPER_ADMIN'] },
   { key: '/admin/audit-logs', label: 'Audit log', allow: ['SUPER_ADMIN'] },
 ]
 

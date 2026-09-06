@@ -21,6 +21,32 @@ public final class AuditAction {
     public static final String HOST_APPLICATION_SUBMITTED = "HOST_APPLICATION_SUBMITTED";
     public static final String HOST_APPLICATION_WITHDRAWN = "HOST_APPLICATION_WITHDRAWN";
 
+    public static final String PROPERTY_CREATED = "PROPERTY_CREATED";
+    public static final String PROPERTY_UPDATED = "PROPERTY_UPDATED";
+    public static final String PROPERTY_SUBMITTED = "PROPERTY_SUBMITTED";
+    public static final String PROPERTY_APPROVED = "PROPERTY_APPROVED";
+    public static final String PROPERTY_REJECTED = "PROPERTY_REJECTED";
+    public static final String PROPERTY_STATUS_CHANGED = "PROPERTY_STATUS_CHANGED";
+    public static final String PROPERTY_DELETED = "PROPERTY_DELETED";
+    public static final String PROPERTY_PHOTO_ADDED = "PROPERTY_PHOTO_ADDED";
+    public static final String PROPERTY_PHOTO_REMOVED = "PROPERTY_PHOTO_REMOVED";
+    public static final String PROPERTY_CALENDAR_UPDATED = "PROPERTY_CALENDAR_UPDATED";
+
+    public static final String BOOKING_CREATED = "BOOKING_CREATED";
+    public static final String BOOKING_APPROVED = "BOOKING_APPROVED";
+    public static final String BOOKING_DECLINED = "BOOKING_DECLINED";
+    public static final String BOOKING_CONFIRMED = "BOOKING_CONFIRMED";
+    public static final String BOOKING_CANCELLED = "BOOKING_CANCELLED";
+    public static final String BOOKING_EXPIRED = "BOOKING_EXPIRED";
+    public static final String BOOKING_COMPLETED = "BOOKING_COMPLETED";
+
+    public static final String PAYMENT_STARTED = "PAYMENT_STARTED";
+    public static final String PAYMENT_SUCCEEDED = "PAYMENT_SUCCEEDED";
+    public static final String PAYMENT_FAILED = "PAYMENT_FAILED";
+    public static final String PAYMENT_CALLBACK_REJECTED = "PAYMENT_CALLBACK_REJECTED";
+    public static final String REFUND_ISSUED = "REFUND_ISSUED";
+    public static final String COMMISSION_RULE_CHANGED = "COMMISSION_RULE_CHANGED";
+
     private AuditAction() {
     }
 }

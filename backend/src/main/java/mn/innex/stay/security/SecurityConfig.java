@@ -74,7 +74,15 @@ public class SecurityConfig {
                                 "/api/v1/auth/refresh",
                                 "/api/v1/auth/password/forgot",
                                 "/api/v1/auth/password/reset").permitAll()
+                        // The guest catalogue is browsable and priceable without an
+                        // account; only committing to a booking needs one.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/listings/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/listings/*/quote").permitAll()
+                        // Provider callbacks cannot carry a user session; they are
+                        // authenticated by signature inside the payment gateway.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/payments/callbacks/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/v1/owner/**").hasRole("HOUSE_OWNER")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))

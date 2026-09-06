@@ -1,4 +1,48 @@
-import type { ApiError, AuthSession, HostApplication, OtpChallenge, User } from './types'
+import type {
+  ApiError, AuthSession, Booking, CalendarDay, HostApplication, ListingDetail, ListingSummary,
+  OtpChallenge, Payment, Quote, User,
+} from './types'
+
+/** Shape of every paged endpoint. */
+export interface Page<T> {
+  rows: T[]
+  total: number
+  page: number
+  size: number
+  totalPages: number
+}
+
+export interface SearchQuery {
+  q?: string
+  city?: string
+  checkIn?: string
+  checkOut?: string
+  guests?: number
+  types?: string[]
+  amenities?: string[]
+  instantBook?: boolean
+  minPrice?: number
+  maxPrice?: number
+  sort?: string
+  page?: number
+  size?: number
+}
+
+function searchParams(query: SearchQuery): string {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') {
+      continue
+    }
+    if (Array.isArray(value)) {
+      // Repeated keys, which is what Spring binds a List parameter from.
+      value.forEach((entry) => params.append(key, String(entry)))
+    } else {
+      params.set(key, String(value))
+    }
+  }
+  return params.toString()
+}
 
 const BASE = '/api/v1'
 const REFRESH_STORAGE_KEY = 'stay.refreshToken'
@@ -162,6 +206,57 @@ export const api = {
     request<HostApplication>(`/users/me/host-applications/${applicationId}/withdraw`, {
       method: 'POST',
     }),
+
+  // --- catalogue (no account needed) ---------------------------------------
+
+  search: (query: SearchQuery) =>
+    request<Page<ListingSummary>>(`/listings/search?${searchParams(query)}`,
+      { anonymous: true }),
+
+  listing: (propertyId: string) =>
+    request<ListingDetail>(`/listings/${propertyId}`, { anonymous: true }),
+
+  availability: (propertyId: string, from: string, to: string) =>
+    request<CalendarDay[]>(
+      `/listings/${propertyId}/availability?${searchParams({ from, to } as SearchQuery)}`,
+      { anonymous: true }),
+
+  /**
+   * Prices a stay without creating anything. The same code prices the booking
+   * itself, so what is shown here is what gets charged.
+   */
+  quote: (propertyId: string, body: { checkIn: string; checkOut: string; guests: number }) =>
+    request<Quote>(`/listings/${propertyId}/quote`,
+      { method: 'POST', body, anonymous: true }),
+
+  // --- bookings and payments (signed in) -----------------------------------
+
+  book: (body: {
+    propertyId: string; checkIn: string; checkOut: string; guests: number; message?: string
+  }) => request<Booking>('/bookings', { method: 'POST', body }),
+
+  bookings: (scope = 'all') => request<Page<Booking>>(`/bookings?scope=${scope}&size=50`),
+
+  booking: (bookingId: string) => request<Booking>(`/bookings/${bookingId}`),
+
+  cancelBooking: (bookingId: string, reason?: string) =>
+    request<Booking>(`/bookings/${bookingId}/cancel`, { method: 'POST', body: { reason } }),
+
+  startPayment: (bookingId: string, provider?: string) =>
+    request<Payment>(`/bookings/${bookingId}/payments`, { method: 'POST', body: { provider } }),
+
+  payments: (bookingId: string) => request<Payment[]>(`/bookings/${bookingId}/payments`),
+
+  payment: (bookingId: string, paymentId: string) =>
+    request<Payment>(`/bookings/${bookingId}/payments/${paymentId}`),
+
+  /**
+   * Development only: settles a simulated payment as a provider callback would.
+   * The endpoint does not exist unless the simulated gateway is enabled.
+   */
+  simulateSettlement: (bookingId: string, paymentId: string) =>
+    request<Payment>(`/bookings/${bookingId}/payments/${paymentId}/simulate-settlement`,
+      { method: 'POST' }),
 }
 
 /** Maps a backend error code to guest-facing copy. */
