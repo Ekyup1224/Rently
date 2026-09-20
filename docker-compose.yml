@@ -1,3 +1,9 @@
+# Pinned so the project name — and therefore the volume names — do not depend on
+# what the checkout directory happens to be called. Without this, cloning into a
+# differently named folder silently creates a second, empty set of volumes and
+# the database appears to have been wiped.
+name: rently
+
 # Local development infrastructure. Application processes run on the host
 # (mvnw spring-boot:run / npm run dev) and talk to these containers.
 services:
