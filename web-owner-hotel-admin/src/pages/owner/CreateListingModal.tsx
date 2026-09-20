@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Form, Input, InputNumber, Modal, Select, Typography, message } from 'antd'
+import { App as AntApp, Form, Input, InputNumber, Modal, Select, Typography } from 'antd'
 import { RequestError } from '../../api/client'
 import { owner } from '../../api/endpoints'
 import type { Property, PropertyType } from '../../types'
@@ -23,6 +23,10 @@ const PROPERTY_TYPES: { value: PropertyType; label: string }[] = [
 export function CreateListingModal({
   open, onClose, onCreated,
 }: { open: boolean; onClose: () => void; onCreated: (created: Property) => void }) {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const [busy, setBusy] = useState(false)
 
   async function submit(values: {

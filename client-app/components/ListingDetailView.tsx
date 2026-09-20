@@ -4,9 +4,12 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import { api, describeError } from '@/lib/api'
-import { amenityLabel, formatMoney } from '@/lib/format'
+import { formatMoney } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 import type { ListingDetail } from '@/lib/types'
 import { BookingWidget } from './BookingWidget'
+import { ReportListing } from './ReportListing'
+import { RatingBadge, ReviewList } from './Reviews'
 
 /**
  * The listing page.
@@ -18,6 +21,7 @@ import { BookingWidget } from './BookingWidget'
  */
 export function ListingDetailView({ propertyId }: { propertyId: string }) {
   const params = useSearchParams()
+  const t = useT()
   const [listing, setListing] = useState<ListingDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [activePhoto, setActivePhoto] = useState(0)
@@ -47,13 +51,13 @@ export function ListingDetailView({ propertyId }: { propertyId: string }) {
   if (error) {
     return (
       <div className="card">
-        <h2 className="card__title">This stay is not available</h2>
+        <h2 className="card__title">{t('listing.unavailable')}</h2>
         <p className="muted small" style={{ marginTop: 0, marginBottom: 0 }}>{error}</p>
       </div>
     )
   }
   if (!listing) {
-    return <p className="muted">Loading…</p>
+    return <p className="muted">{t('common.loading')}</p>
   }
 
   const cover = listing.photos[activePhoto] ?? listing.photos[0]
@@ -61,15 +65,15 @@ export function ListingDetailView({ propertyId }: { propertyId: string }) {
   return (
     <>
       <h1>{listing.title}</h1>
+      <p style={{ marginTop: 0, marginBottom: 4 }}>
+        <RatingBadge average={listing.ratingAverage} count={listing.ratingCount} />
+      </p>
       <p className="muted" style={{ marginTop: 0 }}>
-        {listing.propertyType.toLowerCase()} in {listing.district
+        {t(`type.${listing.propertyType}`)} · {listing.district
           ? `${listing.district}, ${listing.city}` : listing.city}
-        {' · '}sleeps {listing.maxGuests}
-        {listing.bedrooms > 0
-          ? ` · ${listing.bedrooms} bedroom${listing.bedrooms > 1 ? 's' : ''}`
-          : (listing.propertyType === 'APARTMENT' || listing.propertyType === 'STUDIO'
-            ? ' · studio' : '')}
-        {' · '}{listing.bathrooms} bath
+        {' · '}{t('listing.sleeps', { count: listing.maxGuests })}
+        {listing.bedrooms > 0 && ` · ${t('listing.bedrooms', { count: listing.bedrooms })}`}
+        {' · '}{t('listing.baths', { count: listing.bathrooms })}
       </p>
 
       {cover && (
@@ -115,75 +119,84 @@ export function ListingDetailView({ propertyId }: { propertyId: string }) {
 
       {listing.description && (
         <div className="card">
-          <h2 className="card__title">About this place</h2>
+          <h2 className="card__title">{t('listing.about')}</h2>
           <p style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{listing.description}</p>
         </div>
       )}
 
       {listing.amenities.length > 0 && (
         <div className="card">
-          <h2 className="card__title">What this place offers</h2>
+          <h2 className="card__title">{t('listing.offers')}</h2>
           <div className="row" style={{ gap: 8 }}>
             {listing.amenities.map((amenity) => (
-              <span key={amenity} className="tag">{amenityLabel(amenity)}</span>
+              <span key={amenity} className="tag">{t(`amenity.${amenity}`)}</span>
             ))}
           </div>
         </div>
       )}
 
       <div className="card">
-        <h2 className="card__title">Good to know</h2>
+        <h2 className="card__title">{t('listing.goodToKnow')}</h2>
         <dl className="definition">
-          <dt>Nightly from</dt>
+          <dt>{t('listing.nightlyFrom')}</dt>
           <dd>{formatMoney(listing.nightlyFrom, listing.currency)}</dd>
           {listing.cleaningFee > 0 && (
             <>
-              <dt>Cleaning fee</dt>
+              <dt>{t('listing.cleaningFee')}</dt>
               <dd>{formatMoney(listing.cleaningFee, listing.currency)}</dd>
             </>
           )}
-          <dt>Minimum stay</dt>
-          <dd>{listing.minStayNights} night{listing.minStayNights > 1 ? 's' : ''}</dd>
+          <dt>{t('listing.minStay')}</dt>
+          <dd>{listing.minStayNights === 1
+            ? t('common.night_one')
+            : t('common.nights', { count: listing.minStayNights })}</dd>
           {listing.checkInFrom && (
             <>
-              <dt>Check in</dt>
-              <dd>from {listing.checkInFrom.slice(0, 5)}</dd>
+              <dt>{t('listing.checkInFrom')}</dt>
+              <dd>{listing.checkInFrom.slice(0, 5)}</dd>
             </>
           )}
           {listing.checkOutBy && (
             <>
-              <dt>Check out</dt>
-              <dd>by {listing.checkOutBy.slice(0, 5)}</dd>
+              <dt>{t('listing.checkOutBy')}</dt>
+              <dd>{listing.checkOutBy.slice(0, 5)}</dd>
             </>
           )}
-          <dt>Cancellation</dt>
-          <dd>{listing.cancellationPolicy.toLowerCase()}</dd>
-          <dt>Booking</dt>
-          <dd>{listing.instantBook
-            ? 'Instant — no waiting for approval'
-            : 'The host reviews each request'}</dd>
-          <dt>Host</dt>
+          <dt>{t('listing.cancellation')}</dt>
+          <dd>{t(`policy.${listing.cancellationPolicy}`)}</dd>
+          <dt>{t('listing.booking')}</dt>
+          <dd>{listing.instantBook ? t('listing.instant') : t('listing.byRequest')}</dd>
+          <dt>{t('listing.host')}</dt>
           <dd>
-            {listing.host.displayName}, hosting since {listing.host.since}
-            {listing.host.identityVerified && ' · identity verified'}
+            {t('listing.hostSince', {
+              name: listing.host.displayName, year: listing.host.since,
+            })}
+            {listing.host.identityVerified && ` · ${t('listing.verified')}`}
           </dd>
         </dl>
       </div>
 
       {listing.houseRules && (
         <div className="card">
-          <h2 className="card__title">House rules</h2>
+          <h2 className="card__title">{t('listing.rules')}</h2>
           <p style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>{listing.houseRules}</p>
         </div>
       )}
 
       <div className="card">
-        <h2 className="card__title">Where you will be</h2>
+        <h2 className="card__title">{t('listing.where')}</h2>
         <p className="muted small" style={{ marginTop: 0, marginBottom: 0 }}>
           {listing.district ? `${listing.district}, ` : ''}{listing.city}
-          {'. '}The exact address is shared once your booking is confirmed.
+          {'. '}{t('listing.whereBody')}
         </p>
       </div>
+      <ReviewList
+        supplyType="PROPERTY"
+        supplyId={listing.id}
+        average={listing.ratingAverage}
+        count={listing.ratingCount}
+      />
+      <ReportListing supplyType="PROPERTY" supplyId={listing.id} />
     </>
   )
 }

@@ -19,8 +19,10 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import mn.innex.stay.common.Money;
-import mn.innex.stay.listing.domain.CancellationPolicy;
+import mn.innex.stay.common.supply.CancellationPolicy;
+import mn.innex.stay.hotel.domain.RoomType;
 import mn.innex.stay.listing.domain.Property;
+import mn.innex.stay.user.domain.Organization;
 import mn.innex.stay.user.domain.User;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.UuidGenerator;
@@ -53,9 +55,27 @@ public class Booking {
     @Column(name = "booking_type", nullable = false, length = 16)
     private BookingType bookingType = BookingType.PROPERTY;
 
+    /** Set for a PROPERTY booking; null for a hotel stay. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id")
     private Property property;
+
+    /** Set for a HOTEL booking; null for a house. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_type_id")
+    private RoomType roomType;
+
+    /** Rooms of {@link #roomType}. Always 1 for a house. */
+    @Column(name = "room_count", nullable = false)
+    private int roomCount = 1;
+
+    /**
+     * The business being paid, for a hotel stay. A house payout goes to
+     * {@link #host} personally; a hotel's goes to the company.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organization_id")
+    private Organization organization;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "guest_user_id", nullable = false)
@@ -164,16 +184,55 @@ public class Booking {
     public Booking(String reference, Property property, User guest, LocalDate checkIn,
                    LocalDate checkOut, int guestCount, BookingStatus status, String guestMessage) {
         this.reference = reference;
+        this.bookingType = BookingType.PROPERTY;
         this.property = property;
         this.guest = guest;
         this.host = property.getOwner();
         this.checkIn = checkIn;
         this.checkOut = checkOut;
         this.guestCount = guestCount;
+        this.roomCount = 1;
         this.status = status;
         this.guestMessage = guestMessage;
         this.currency = property.getCurrency();
         this.cancellationPolicy = property.getCancellationPolicy();
+    }
+
+    /**
+     * A hotel reservation: {@code rooms} rooms of one room type.
+     *
+     * <p>The host is recorded as the organization's owner so that every booking
+     * has a person to contact, while {@link #organization} is what the payout
+     * follows.
+     */
+    public static Booking forHotel(String reference, RoomType roomType, User guest,
+                                   LocalDate checkIn, LocalDate checkOut, int guestCount,
+                                   int rooms, BookingStatus status, String guestMessage) {
+        Booking booking = new Booking();
+        booking.reference = reference;
+        booking.bookingType = BookingType.HOTEL;
+        booking.roomType = roomType;
+        booking.organization = roomType.getHotel().getOrganization();
+        booking.guest = guest;
+        booking.host = roomType.getHotel().getOrganization().getOwnerUser();
+        booking.checkIn = checkIn;
+        booking.checkOut = checkOut;
+        booking.guestCount = guestCount;
+        booking.roomCount = rooms;
+        booking.status = status;
+        booking.guestMessage = guestMessage;
+        booking.currency = roomType.getHotel().getCurrency();
+        booking.cancellationPolicy = roomType.getHotel().getCancellationPolicy();
+        return booking;
+    }
+
+    /** Front-desk arrival. Hotels only: a house has no desk to check in at. */
+    public void checkIn() {
+        this.status = BookingStatus.CHECKED_IN;
+    }
+
+    public void checkOut() {
+        this.status = BookingStatus.CHECKED_OUT;
     }
 
     @PrePersist
@@ -283,6 +342,22 @@ public class Booking {
 
     public Property getProperty() {
         return property;
+    }
+
+    public RoomType getRoomType() {
+        return roomType;
+    }
+
+    public int getRoomCount() {
+        return roomCount;
+    }
+
+    public Organization getOrganization() {
+        return organization;
+    }
+
+    public boolean isHotelStay() {
+        return bookingType == BookingType.HOTEL;
     }
 
     public User getGuest() {

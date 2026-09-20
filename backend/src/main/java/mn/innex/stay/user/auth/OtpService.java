@@ -41,10 +41,10 @@ public class OtpService {
     /**
      * Generates a code, stores its hash, and hands it to the SMS gateway.
      *
-     * @return how long the caller must wait before another code can be requested
+     * @return the cooldown, and in development the code itself
      * @throws ApiException 429 when locked out, on cooldown, or over the hourly cap
      */
-    public Duration issue(String destination, OtpPurpose purpose) {
+    public Issued issue(String destination, OtpPurpose purpose) {
         assertNotLockedOut(destination);
         assertNotOnCooldown(destination, purpose);
         assertUnderHourlyCap(destination);
@@ -57,7 +57,17 @@ public class OtpService {
         smsSender.send(destination, "%s is your verification code. It expires in %d minutes."
                 .formatted(code, Math.max(1, properties.ttl().toMinutes())));
         log.debug("Issued OTP purpose={} destination={}", purpose, PhoneNumbers.mask(destination));
-        return properties.resendCooldown();
+        return new Issued(properties.resendCooldown(),
+                properties.devCodeVisible() ? code : null);
+    }
+
+    /**
+     * What issuing produced.
+     *
+     * @param devCode the plain code, only ever non-null in a development
+     *                configuration; see {@link OtpProperties#devCodeVisible()}
+     */
+    public record Issued(Duration resendAfter, String devCode) {
     }
 
     /**

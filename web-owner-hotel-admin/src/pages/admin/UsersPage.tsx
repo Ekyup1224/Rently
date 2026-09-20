@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import {
-  Button, Card, Flex, Input, Modal, Select, Space, Tag, Typography, message,
+  App as AntApp, Button, Card, Flex, Input, Modal, Select, Space, Tag, Typography,
 } from 'antd'
 import { AgGridReact } from 'ag-grid-react'
 import type {
@@ -11,6 +11,8 @@ import dayjs from 'dayjs'
 import { admin } from '../../api/endpoints'
 import { RequestError } from '../../api/client'
 import type { KycStatus, Role, User, UserStatus } from '../../types'
+import { PageHead } from '../../ui/PageHead'
+import { plural } from '../../ui/plural'
 
 const PAGE_SIZE = 25
 
@@ -32,6 +34,10 @@ const GRANTABLE_ROLES: Role[] = ['HOUSE_OWNER', 'HOTEL_MANAGER', 'HOTEL_STAFF', 
  * table is expected to outgrow anything worth loading in one request.
  */
 export function UsersPage() {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const gridApi = useRef<GridApi<User> | null>(null)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<UserStatus | undefined>()
@@ -64,7 +70,7 @@ export function UsersPage() {
         params.failCallback()
       }
     },
-  }), [])
+  }), [message])
 
   const onGridReady = useCallback((event: GridReadyEvent<User>) => {
     gridApi.current = event.api
@@ -142,9 +148,12 @@ export function UsersPage() {
   return (
     <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
       <Flex align="baseline" justify="space-between" wrap gap={12}>
-        <Typography.Title level={3} style={{ margin: 0 }}>Users</Typography.Title>
+        <PageHead
+        title="Users"
+        description={'Every account, its roles and whether it can sign in.'}
+      />
         {total !== null && (
-          <Typography.Text type="secondary">{total} matching account(s)</Typography.Text>
+          <Typography.Text type="secondary">{plural(total, 'matching account')}</Typography.Text>
         )}
       </Flex>
 
@@ -210,6 +219,8 @@ function dash({ value }: ValueFormatterParams<User, string | undefined>): string
 function ManageUserModal({
   user, onClose, onChanged,
 }: { user: User | null; onClose: () => void; onChanged: () => void }) {
+  const { message } = AntApp.useApp()
+
   const [busy, setBusy] = useState(false)
   const [roleToGrant, setRoleToGrant] = useState<Role | undefined>()
   const [organizationId, setOrganizationId] = useState('')

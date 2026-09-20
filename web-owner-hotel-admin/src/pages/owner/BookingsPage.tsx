@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Alert, Button, Card, Descriptions, Empty, Flex, Input, Modal, Segmented, Space, Spin, Tag,
-  Typography, message,
+  Alert, App as AntApp, Button, Card, Descriptions, Empty, Flex, Input, Modal, Segmented,
+  Space, Spin, Tag, Typography,
 } from 'antd'
 import dayjs from 'dayjs'
 import { RequestError } from '../../api/client'
 import { owner } from '../../api/endpoints'
 import type { Booking } from '../../types'
 import { BOOKING_STATUS_COLORS, BOOKING_STATUS_LABELS, formatMoney } from './listingFormat'
+import { PageHead } from '../../ui/PageHead'
 
 const SCOPES = [
   { label: 'Needs response', value: 'pending' },
@@ -24,10 +25,39 @@ const SCOPES = [
  * or service fee, which are not the host's economics.
  */
 export function BookingsPage() {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const [scope, setScope] = useState('pending')
   const [bookings, setBookings] = useState<Booking[] | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
   const [decision, setDecision] = useState<{ booking: Booking; kind: 'approve' | 'decline' | 'cancel' } | null>(null)
+  const [arrivalBusy, setArrivalBusy] = useState<string | null>(null)
+
+  /**
+   * Confirms a guest turned up, or left.
+   *
+   * <p>Not bookkeeping: nothing is paid out until a stay has actually started, so
+   * this is the step that releases the host's own money.
+   */
+  async function markArrival(booking: Booking, direction: 'in' | 'out') {
+    setArrivalBusy(booking.id)
+    try {
+      if (direction === 'in') {
+        await owner.checkIn(booking.id)
+        message.success('Marked as arrived — your payout is now in the release queue')
+      } else {
+        await owner.checkOut(booking.id)
+        message.success('Stay closed. You and your guest can now review each other.')
+      }
+      setReloadToken((token) => token + 1)
+    } catch (failure) {
+      message.error(failure instanceof RequestError ? failure.message : 'Could not update the stay')
+    } finally {
+      setArrivalBusy(null)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -51,13 +81,16 @@ export function BookingsPage() {
     return () => {
       cancelled = true
     }
-  }, [scope, reloadToken])
+  }, [scope, reloadToken, message])
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), [])
 
   return (
     <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-      <Typography.Title level={3} style={{ margin: 0 }}>Reservations</Typography.Title>
+      <PageHead
+        title="Reservations"
+        description={'Requests waiting on you, and the stays already confirmed.'}
+      />
 
       <Segmented options={SCOPES} value={scope}
                  onChange={(value) => setScope(value as string)} />
@@ -71,6 +104,8 @@ export function BookingsPage() {
         const awaitingResponse = booking.status === 'PENDING_HOST_APPROVAL'
         const cancellable = ['PENDING_HOST_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED', 'CHECKED_IN']
           .includes(booking.status)
+        const arriving = booking.status === 'CONFIRMED'
+        const staying = booking.status === 'CHECKED_IN'
 
         return (
           <Card key={booking.id} size="small">
@@ -131,6 +166,18 @@ export function BookingsPage() {
                     </Button>
                   </>
                 )}
+                {arriving && (
+                  <Button type="primary" block loading={arrivalBusy === booking.id}
+                          onClick={() => markArrival(booking, 'in')}>
+                    Guest arrived
+                  </Button>
+                )}
+                {staying && (
+                  <Button type="primary" block loading={arrivalBusy === booking.id}
+                          onClick={() => markArrival(booking, 'out')}>
+                    Guest left
+                  </Button>
+                )}
                 {cancellable && !awaitingResponse && (
                   <Button danger block onClick={() => setDecision({ booking, kind: 'cancel' })}>
                     Cancel
@@ -156,6 +203,8 @@ function DecisionModal({
   onClose: () => void
   onDone: () => void
 }) {
+  const { message } = AntApp.useApp()
+
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
 

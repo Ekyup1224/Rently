@@ -24,6 +24,15 @@ public interface ObjectStorage {
      */
     java.util.Optional<StoredObject> describe(String key);
 
+    /**
+     * The object's bytes, for the rare case where the server itself has to look at
+     * a file rather than hand out a URL — fingerprinting an uploaded photo, for
+     * one.
+     *
+     * @return empty when no object exists at that key
+     */
+    java.util.Optional<byte[]> read(String key);
+
     void delete(String key);
 
     /** Public URL for a stored object. */

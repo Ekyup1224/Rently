@@ -6,9 +6,9 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
-import mn.innex.stay.listing.domain.CancellationPolicy;
+import mn.innex.stay.common.supply.CancellationPolicy;
 import mn.innex.stay.listing.domain.Property;
-import mn.innex.stay.listing.domain.PropertyStatus;
+import mn.innex.stay.common.supply.SupplyStatus;
 import mn.innex.stay.listing.domain.PropertyType;
 import mn.innex.stay.listing.storage.ObjectStorage;
 
@@ -46,7 +46,7 @@ public record PropertyResponse(
         Integer maxStayNights,
         CancellationPolicy cancellationPolicy,
         boolean instantBook,
-        PropertyStatus status,
+        SupplyStatus status,
         String rejectionReason,
         List<String> readinessProblems,
         List<PhotoResponse> photos,

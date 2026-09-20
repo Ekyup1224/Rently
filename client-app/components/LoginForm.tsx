@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api, describeError } from '@/lib/api'
 import { useAuth } from './AuthProvider'
+import { useT } from '@/lib/i18n'
 
 /**
  * Phone-first sign-in. There is no separate "register" step: an unknown number
@@ -12,12 +13,14 @@ import { useAuth } from './AuthProvider'
 export function LoginForm() {
   const { adopt } = useAuth()
   const router = useRouter()
+  const t = useT()
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [stage, setStage] = useState<'phone' | 'code'>('phone')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resendIn, setResendIn] = useState(0)
+  const [devCode, setDevCode] = useState<string | null>(null)
 
   // Mirrors the server's cooldown so the resend button is disabled exactly while
   // a retry would be rejected.
@@ -36,6 +39,12 @@ export function LoginForm() {
       const challenge = await api.requestOtp(phone)
       setStage('code')
       setResendIn(challenge.resendAfterSeconds)
+      // A development server hands the code straight back. Fill it in, and on a
+      // resend replace what is already there, or the stale code gets submitted.
+      setDevCode(challenge.devCode ?? null)
+      if (challenge.devCode) {
+        setCode(challenge.devCode)
+      }
     } catch (failure) {
       setError(describeError(failure))
     } finally {
@@ -68,7 +77,7 @@ export function LoginForm() {
           }}
         >
           <label className="field">
-            <span className="field__label">Phone number</span>
+            <span className="field__label">{t('auth.phone')}</span>
             <input
               name="phone"
               type="tel"
@@ -79,12 +88,10 @@ export function LoginForm() {
               onChange={(event) => setPhone(event.target.value)}
               autoFocus
             />
-            <span className="muted small">
-              Mongolian numbers can be typed as 8 digits. Others need a country code.
-            </span>
+            <span className="muted small">{t('auth.help')}</span>
           </label>
           <button type="submit" className="button button--block" disabled={busy || !phone.trim()}>
-            {busy ? 'Sending…' : 'Send code'}
+            {busy ? t('auth.sending') : t('auth.sendCode')}
           </button>
         </form>
       ) : (
@@ -94,8 +101,15 @@ export function LoginForm() {
             void verify()
           }}
         >
+          {devCode && (
+            <div className="alert alert--info">
+              <strong>{t('auth.devTitle', { code: devCode })}</strong>
+              <br />
+              {t('auth.devBody')}
+            </div>
+          )}
           <label className="field">
-            <span className="field__label">Code sent to {phone}</span>
+            <span className="field__label">{t('auth.codeSentTo', { phone })}</span>
             <input
               name="code"
               inputMode="numeric"
@@ -108,7 +122,7 @@ export function LoginForm() {
             />
           </label>
           <button type="submit" className="button button--block" disabled={busy || code.length < 4}>
-            {busy ? 'Checking…' : 'Sign in'}
+            {busy ? t('auth.verifying') : t('auth.verify')}
           </button>
           <div className="row" style={{ justifyContent: 'space-between', marginTop: 6 }}>
             <button
@@ -120,7 +134,7 @@ export function LoginForm() {
                 setError(null)
               }}
             >
-              Change number
+              {t('auth.changeNumber')}
             </button>
             <button
               type="button"
@@ -128,7 +142,7 @@ export function LoginForm() {
               disabled={resendIn > 0 || busy}
               onClick={() => void sendCode()}
             >
-              {resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
+              {resendIn > 0 ? t('auth.resendIn', { seconds: resendIn }) : t('auth.resend')}
             </button>
           </div>
         </form>

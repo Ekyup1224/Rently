@@ -6,10 +6,5 @@ export const metadata: Metadata = {
 }
 
 export default function TripsPage() {
-  return (
-    <>
-      <h1>Your trips</h1>
-      <TripsView />
-    </>
-  )
+  return <TripsView />
 }

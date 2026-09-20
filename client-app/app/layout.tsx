@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { AuthProvider } from '@/components/AuthProvider'
 import { SiteHeader } from '@/components/SiteHeader'
+import { LanguageProvider } from '@/lib/i18n'
+import { SiteFooter } from '@/components/SiteFooter'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -14,7 +16,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#1668dc',
+  themeColor: '#2563eb',
   width: 'device-width',
   initialScale: 1,
 }
@@ -23,13 +25,13 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="mn">
       <body>
-        <AuthProvider>
-          <SiteHeader />
-          <main className="page">{children}</main>
-          <footer className="site-footer">
-            <span>Prices in MNT · Монгол / English</span>
-          </footer>
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <SiteHeader />
+            <main className="page">{children}</main>
+            <SiteFooter />
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   )

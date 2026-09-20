@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Alert, Button, Card, Descriptions, Empty, Flex, Image, Input, Modal, Segmented, Space, Spin,
-  Tag, Typography, message,
+  Alert, App as AntApp, Button, Card, Descriptions, Empty, Flex, Image, Input, Modal,
+  Segmented, Space, Spin, Tag, Typography,
 } from 'antd'
 import dayjs from 'dayjs'
 import { RequestError } from '../../api/client'
 import { adminListings } from '../../api/endpoints'
 import type { Property, PropertyStatus } from '../../types'
 import { STATUS_COLORS, STATUS_LABELS, formatMoney } from '../owner/listingFormat'
+import { PageHead } from '../../ui/PageHead'
+import { plural } from '../../ui/plural'
 
 const QUEUES: { label: string; value: PropertyStatus | 'ALL' }[] = [
   { label: 'Awaiting review', value: 'PENDING_REVIEW' },
@@ -25,6 +27,10 @@ const QUEUES: { label: string; value: PropertyStatus | 'ALL' }[] = [
  * queue stops getting worked.
  */
 export function ListingReviewPage() {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const [queue, setQueue] = useState<PropertyStatus | 'ALL'>('PENDING_REVIEW')
   const [listings, setListings] = useState<Property[] | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
@@ -57,13 +63,16 @@ export function ListingReviewPage() {
     return () => {
       cancelled = true
     }
-  }, [queue, reloadToken])
+  }, [queue, reloadToken, message])
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), [])
 
   return (
     <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-      <Typography.Title level={3} style={{ margin: 0 }}>Listing review</Typography.Title>
+      <PageHead
+        title="Listing review"
+        description={'Houses and apartments waiting to go on sale. Nothing reaches search until it passes through here.'}
+      />
 
       <Segmented options={QUEUES} value={queue}
                  onChange={(value) => setQueue(value as PropertyStatus | 'ALL')} />
@@ -118,7 +127,7 @@ export function ListingReviewPage() {
                   )}
                 </Descriptions.Item>
                 <Descriptions.Item label="Policy" span={2}>
-                  {listing.cancellationPolicy.toLowerCase()} · min {listing.minStayNights} night(s)
+                  {listing.cancellationPolicy.toLowerCase()} · min {plural(listing.minStayNights, 'night')}
                 </Descriptions.Item>
                 <Descriptions.Item label="Submitted" span={2}>
                   {dayjs(listing.updatedAt).format('D MMM YYYY HH:mm')}
@@ -200,6 +209,8 @@ function ReviewDecisionModal({
   onClose: () => void
   onDone: () => void
 }) {
+  const { message } = AntApp.useApp()
+
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
 

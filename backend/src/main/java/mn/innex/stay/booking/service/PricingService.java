@@ -17,7 +17,7 @@ import mn.innex.stay.common.Money;
 import mn.innex.stay.common.PlatformTime;
 import mn.innex.stay.listing.domain.AvailabilityException;
 import mn.innex.stay.listing.domain.Property;
-import mn.innex.stay.listing.domain.PropertyStatus;
+import mn.innex.stay.common.supply.SupplyStatus;
 import mn.innex.stay.listing.repo.AvailabilityExceptionRepository;
 import mn.innex.stay.user.domain.UserStatus;
 import org.springframework.stereotype.Service;
@@ -96,14 +96,15 @@ public class PricingService {
                 property.getCancellationPolicy(), checkIn, accommodation, guestServiceFee, firstNight);
 
         return new Quote(
-                property.getId(), checkIn, checkOut, nights, guests, property.getCurrency(),
+                mn.innex.stay.booking.domain.BookingType.PROPERTY, property.getId(), 1,
+                checkIn, checkOut, nights, guests, property.getCurrency(),
                 nightlyRates, nightlySubtotal, cleaningFee, guestServiceFee, tax, total,
                 hostCommission, hostPayout, rule.getId(),
                 property.getCancellationPolicy(), refundSchedule, property.isInstantBook());
     }
 
     private void assertBookable(Property property) {
-        if (property.getStatus() != PropertyStatus.APPROVED) {
+        if (property.getStatus() != SupplyStatus.APPROVED) {
             throw ApiException.conflict("listing_not_bookable",
                     "This listing is not currently accepting bookings");
         }

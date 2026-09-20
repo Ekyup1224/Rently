@@ -1,59 +1,85 @@
+/*
+ * The whole design system. Every screen is built from these tokens and classes,
+ * so a change here is a change everywhere — which is the point.
+ *
+ * Light only, deliberately. The palette used to follow prefers-color-scheme, and
+ * on a dark-mode machine that meant a near-black travel site: the photographs
+ * are the product here, and they read badly against black. A real dark theme is
+ * a considered piece of work with its own image treatment, not an inverted set
+ * of greys, so it belongs behind an explicit toggle rather than the OS setting.
+ */
 :root {
-  --brand: #1668dc;
-  --brand-strong: #0f4fa8;
-  --ink: #16181d;
-  --ink-muted: #5f6470;
-  --line: #e4e6eb;
-  --surface: #ffffff;
-  --ground: #f6f7f9;
-  --danger: #cf1322;
-  --radius: 12px;
-  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 4px 16px rgba(16, 24, 40, 0.06);
-  color-scheme: light dark;
-}
+  /* Brand blue for trust and actions, warm amber for money and highlights, teal
+     to tell hotels apart from houses at a glance. */
+  --brand: #2563eb;
+  --brand-strong: #1d4ed8;
+  --brand-soft: #eaf1ff;
+  --accent: #f59e0b;
+  --accent-soft: #fff5e3;
+  --teal: #0d9488;
+  --teal-soft: #e3f7f4;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #f1f2f4;
-    --ink-muted: #a3a8b4;
-    --line: #2c2f36;
-    --surface: #191b1f;
-    --ground: #101216;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-  }
+  --ink: #0f1729;
+  --ink-muted: #5a6478;
+  --line: #e5e9f0;
+  --surface: #ffffff;
+  --ground: #f6f8fc;
+  --danger: #dc2626;
+  --success: #059669;
+
+  --radius: 16px;
+  --radius-sm: 12px;
+
+  /* Blue-tinted rather than grey: a neutral shadow on a tinted ground reads as
+     dirt, a tinted one as depth. */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 41, 0.04), 0 1px 3px rgba(37, 99, 235, 0.04);
+  --shadow: 0 2px 4px rgba(15, 23, 41, 0.04), 0 8px 24px rgba(37, 99, 235, 0.07);
+  --shadow-lg: 0 4px 8px rgba(15, 23, 41, 0.05), 0 18px 40px rgba(37, 99, 235, 0.12);
+
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: var(--ground);
+  /* A faint wash at the top so the page has somewhere to start, instead of a
+     flat slab of grey behind the header. */
+  background: var(--ground)
+    radial-gradient(900px 420px at 50% -180px, #dfe9ff 0%, rgba(223, 233, 255, 0) 70%)
+    no-repeat;
   color: var(--ink);
   font: 16px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
     Arial, 'Noto Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-a { color: var(--brand); }
+a { color: var(--brand); text-decoration-thickness: 1.5px; text-underline-offset: 2px; }
 
 .page {
-  max-width: 960px;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 20px 16px 48px;
+  padding: 20px 20px 56px;
 }
+
+/* --- chrome ------------------------------------------------------------- */
 
 .site-header {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--surface);
+  /* Translucent enough to feel layered, opaque enough that content sliding
+     under it does not show through the wordmark. */
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--line);
 }
 
 .site-header__inner {
-  max-width: 960px;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 12px 16px;
+  padding: 12px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -63,16 +89,19 @@ a { color: var(--brand); }
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 650;
+  gap: 9px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--ink);
   text-decoration: none;
 }
 
 .brand__mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
 }
 
 .nav {
@@ -83,18 +112,74 @@ a { color: var(--brand); }
 
 .site-footer {
   border-top: 1px solid var(--line);
-  padding: 20px 16px 40px;
+  margin-top: 40px;
+  padding: 22px 20px 44px;
   text-align: center;
   color: var(--ink-muted);
   font-size: 13px;
 }
+
+/* --- type --------------------------------------------------------------- */
+
+h1 {
+  font-size: 32px;
+  line-height: 1.18;
+  letter-spacing: -0.025em;
+  font-weight: 750;
+  margin: 0 0 8px;
+}
+
+h2 {
+  font-size: 21px;
+  letter-spacing: -0.015em;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+.muted { color: var(--ink-muted); }
+.small { font-size: 13px; }
+
+/* The price on a card or a quote line: the number people actually scan for. */
+.price {
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+
+/* --- hero --------------------------------------------------------------- */
+
+/*
+ * The landing page's opening. Colour lives here rather than being sprinkled over
+ * every card, so the stays below stay the loudest thing on the page.
+ */
+.hero {
+  border-radius: 24px;
+  padding: 32px 28px 26px;
+  margin-bottom: 4px;
+  border: 1px solid #dbe4f5;
+  background:
+    radial-gradient(600px 200px at 88% 0%, rgba(245, 158, 11, 0.16), transparent 70%),
+    linear-gradient(135deg, #e9f1ff 0%, #eef7f6 55%, #fdf3e6 100%);
+}
+
+.hero h1 { font-size: 36px; }
+
+.hero > p {
+  margin: 0 0 20px;
+  max-width: 52ch;
+  font-size: 16px;
+  color: #3d4861;
+}
+
+/* --- surfaces ----------------------------------------------------------- */
 
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 20px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
 }
 
 .card + .card { margin-top: 16px; }
@@ -102,117 +187,228 @@ a { color: var(--brand); }
 .card__title {
   margin: 0 0 4px;
   font-size: 17px;
-  font-weight: 650;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
-.muted { color: var(--ink-muted); }
-.small { font-size: 13px; }
-
-h1 { font-size: 26px; line-height: 1.25; margin: 0 0 6px; }
-h2 { font-size: 19px; margin: 0 0 10px; }
+/* --- forms -------------------------------------------------------------- */
 
 .field { display: block; margin-bottom: 14px; }
 
 .field__label {
   display: block;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   margin-bottom: 6px;
   color: var(--ink-muted);
 }
 
 input, select, textarea {
   width: 100%;
-  padding: 11px 12px;
+  padding: 11px 13px;
   font: inherit;
   color: var(--ink);
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 1px solid #dde3ee;
+  border-radius: var(--radius-sm);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
+input::placeholder, textarea::placeholder { color: #97a1b5; }
+
+input:hover, select:hover, textarea:hover { border-color: #c6d0e2; }
+
 input:focus, select:focus, textarea:focus {
-  outline: 2px solid color-mix(in srgb, var(--brand) 40%, transparent);
-  outline-offset: 1px;
+  outline: none;
   border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 
 input:disabled { background: var(--ground); color: var(--ink-muted); }
+
+/* --- buttons ------------------------------------------------------------ */
 
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 11px 16px;
+  padding: 11px 18px;
   font: inherit;
-  font-weight: 600;
-  border-radius: 10px;
+  font-weight: 650;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
-  background: var(--brand);
+  background: linear-gradient(180deg, var(--brand), var(--brand-strong));
   color: #fff;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 41, 0.08), 0 6px 16px rgba(37, 99, 235, 0.22);
+  transition: transform 100ms ease, box-shadow 120ms ease, background 120ms ease;
 }
 
-.button:hover:not(:disabled) { background: var(--brand-strong); }
-.button:disabled { opacity: 0.55; cursor: not-allowed; }
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(15, 23, 41, 0.1), 0 10px 22px rgba(37, 99, 235, 0.28);
+}
+
+.button:active:not(:disabled) { transform: translateY(0); }
+
+.button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 
 .button--ghost {
-  background: transparent;
+  background: var(--surface);
   color: var(--ink);
-  border-color: var(--line);
+  border-color: #dde3ee;
+  box-shadow: var(--shadow-sm);
+}
+
+.button--ghost:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: #c6d0e2;
+  box-shadow: var(--shadow);
 }
 
 .button--link {
   background: none;
   border: none;
-  color: var(--brand);
-  padding: 6px 2px;
-  font-weight: 500;
+  color: var(--ink-muted);
+  padding: 6px 8px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.button--link:hover:not(:disabled) {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  transform: none;
+  box-shadow: none;
 }
 
 .button--block { width: 100%; }
 
+/* --- layout helpers ----------------------------------------------------- */
+
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* Compact search: one row on the landing page, stacked on a phone. The fields
+   keep their .field markup so the labels stay readable to a screen reader. */
+.search-bar {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 0.9fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.search-bar .field { margin-bottom: 0; }
+
+/* --- stay cards --------------------------------------------------------- */
+
+/* A row of stays. auto-fill rather than a fixed count, so four cards on a
+   laptop become two on a tablet without a breakpoint for every width. */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 18px;
+}
+
+.supply-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 160ms ease, transform 160ms ease, border-color 160ms ease;
+}
+
+.supply-card:hover {
+  border-color: #cfdcf5;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px);
+}
+
+.supply-card__image {
+  display: block;
+  width: 100%;
+  /* height:auto lets the 4:3 intrinsic size win; without it next/image's own
+     height attribute stretches the card and warns about a single changed
+     dimension. */
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--ground);
+}
+
+.supply-card__body { padding: 13px 15px 15px; }
+
+.section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 32px 0 14px;
+}
+
+.section-head h2 { margin: 0; }
+
+/* --- messages and badges ------------------------------------------------ */
 
 .alert {
-  border-radius: 10px;
-  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
   font-size: 14px;
   margin-bottom: 14px;
   border: 1px solid;
 }
 
 .alert--error {
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
-  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+  color: #a31515;
+  background: #fef2f2;
+  border-color: #fbd5d5;
 }
 
 .alert--info {
   color: var(--brand-strong);
-  background: color-mix(in srgb, var(--brand) 8%, transparent);
-  border-color: color-mix(in srgb, var(--brand) 25%, transparent);
+  background: var(--brand-soft);
+  border-color: #cfdcf5;
 }
 
 .tag {
   display: inline-block;
-  padding: 2px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 650;
   background: var(--ground);
   border: 1px solid var(--line);
   color: var(--ink-muted);
 }
 
+/* Hotels teal, instant-book amber: the two things worth spotting from across
+   a list of results. */
+.tag--hotel {
+  background: var(--teal-soft);
+  border-color: #bfe8e2;
+  color: #0b6b62;
+}
+
+.tag--instant {
+  background: var(--accent-soft);
+  border-color: #f7dfb0;
+  color: #8a5206;
+}
+
 .segmented {
   display: inline-flex;
-  padding: 3px;
-  gap: 3px;
+  padding: 4px;
+  gap: 4px;
   background: var(--ground);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   margin-bottom: 16px;
 }
@@ -220,24 +416,27 @@ input:disabled { background: var(--ground); color: var(--ink-muted); }
 .segmented button {
   border: none;
   background: none;
-  padding: 7px 14px;
-  border-radius: 8px;
+  padding: 7px 15px;
+  border-radius: 9px;
   font: inherit;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--ink-muted);
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
+
+.segmented button:hover { color: var(--ink); }
 
 .segmented button[aria-pressed='true'] {
   background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow);
+  color: var(--brand-strong);
+  box-shadow: var(--shadow-sm);
 }
 
 .definition {
   display: grid;
-  grid-template-columns: 130px 1fr;
-  gap: 8px 12px;
+  grid-template-columns: 140px 1fr;
+  gap: 9px 12px;
   font-size: 14px;
 }
 
@@ -245,7 +444,312 @@ input:disabled { background: var(--ground); color: var(--ink-muted); }
 .definition dd { margin: 0; }
 
 @media (max-width: 560px) {
-  .grid-2 { grid-template-columns: 1fr; }
+  .page { padding: 16px 14px 48px; }
+  .hero { padding: 24px 18px 20px; border-radius: 20px; }
+  .hero h1 { font-size: 28px; }
+  h1 { font-size: 26px; }
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .search-bar { grid-template-columns: 1fr 1fr; }
+  .search-bar > :last-child { grid-column: 1 / -1; }
   .definition { grid-template-columns: 1fr; gap: 2px 0; }
   .definition dd { margin-bottom: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+  .button:hover:not(:disabled), .supply-card:hover { transform: none; }
+}
+
+/* --- ratings and reviews -------------------------------------------------- */
+
+.rating {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.rating--small { font-size: 13px; }
+
+.rating__stars {
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+
+.rating-breakdown {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+.rating-breakdown__row {
+  display: grid;
+  grid-template-columns: 110px 1fr 32px;
+  align-items: center;
+  gap: 10px;
+}
+
+.rating-breakdown__bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ground);
+  overflow: hidden;
+}
+
+.rating-breakdown__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand), var(--teal));
+}
+
+.review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.review + .review { border-top: 1px solid var(--line); padding-top: 18px; }
+
+.review__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.review__body { margin: 6px 0 0; white-space: pre-wrap; }
+
+.review__response {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--brand);
+  background: var(--brand-soft);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* --- writing a review ----------------------------------------------------- */
+
+.review-form {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-top: 12px;
+  background: var(--ground);
+}
+
+.star-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+}
+
+.star-picker__label { font-size: 14px; }
+.star-picker__stars { display: inline-flex; gap: 2px; }
+
+.star {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 1px;
+  color: var(--line);
+  transition: color 0.12s ease, transform 0.12s ease;
+}
+
+.star:hover { transform: scale(1.15); }
+.star--on { color: var(--accent); }
+
+/* --- inbox ---------------------------------------------------------------- */
+
+.inbox {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.inbox__list {
+  display: grid;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.thread {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+}
+
+.thread:hover { background: var(--ground); }
+
+.thread[aria-current='true'] {
+  background: var(--brand-soft);
+  box-shadow: inset 2px 0 0 var(--brand);
+}
+
+.thread__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.badge {
+  background: var(--brand);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inbox__thread {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  min-height: 460px;
+}
+
+.inbox__head {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+
+.bubbles {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 420px;
+  padding: 4px 2px;
+}
+
+.bubble {
+  max-width: 78%;
+  padding: 9px 13px;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--ground);
+  align-self: flex-start;
+}
+
+.bubble--mine {
+  align-self: flex-end;
+  background: var(--brand-soft);
+  border-radius: 14px 14px 4px 14px;
+}
+
+.bubble__time {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-muted);
+}
+
+.bubble__warning {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--accent);
+  font-size: 12px;
+  color: #92400e;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+}
+
+.composer .input { flex: 1; }
+
+/* --- language switch ------------------------------------------------------ */
+
+.lang-switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.lang-switch button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 11px;
+  color: var(--ink-muted);
+}
+
+.lang-switch button[aria-pressed='true'] {
+  background: var(--brand);
+  color: #fff;
+}
+
+@media (max-width: 760px) {
+  .inbox { grid-template-columns: 1fr; }
+  .bubbles { max-height: 320px; }
+  .rating-breakdown__row { grid-template-columns: 90px 1fr 30px; }
+}
+
+/* A listing whose host has not added a photo. An empty grey rectangle reads as a
+   broken image; a marked one reads as a listing that is simply incomplete. */
+.supply-card__image--empty {
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  background: linear-gradient(135deg, var(--brand-soft), var(--teal-soft));
+  border: 1px solid var(--line);
+  opacity: 0.85;
+}
+
+/* Nav destinations are places, not sentences: underlining every one makes the
+   header look like a paragraph of links. */
+.nav .button--link {
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.nav .button--link:hover:not(:disabled) {
+  text-decoration: none;
+  background: var(--ground);
+  color: var(--brand-strong);
 }

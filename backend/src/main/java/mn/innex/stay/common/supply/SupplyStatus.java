@@ -1,13 +1,14 @@
-package mn.innex.stay.listing.domain;
+package mn.innex.stay.common.supply;
 
 /**
- * Listing lifecycle. Only {@link #APPROVED} is visible to guests.
+ * Lifecycle of anything a guest can be shown: a house listing, a hotel, and
+ * whatever supply type comes next. Only {@link #APPROVED} is visible to guests.
  *
  * <p>{@link #PAUSED} and {@link #SUSPENDED} are both invisible but differ in who
  * can undo them: an owner can unpause their own listing, while a suspension is an
  * admin action the owner cannot reverse.
  */
-public enum PropertyStatus {
+public enum SupplyStatus {
 
     /** Being written. Not submitted, not visible. */
     DRAFT,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert, Button, Card, Checkbox, Col, Flex, Form, Input, InputNumber, Row, Select, Space, Spin,
-  Switch, Tag, TimePicker, Typography, message,
+  Alert, App as AntApp, Button, Card, Checkbox, Col, Flex, Form, Input, InputNumber, Row,
+  Select, Space, Spin, Switch, Tag, TimePicker, Typography,
 } from 'antd'
 import { useNavigate, useParams } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -45,6 +45,10 @@ const AMENITY_GROUPS: { label: string; amenities: string[] }[] = [
  * status tag updates to say so.
  */
 export function PropertyEditorPage() {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const { propertyId } = useParams<{ propertyId: string }>()
   const navigate = useNavigate()
   const [form] = Form.useForm()
@@ -81,7 +85,7 @@ export function PropertyEditorPage() {
     return () => {
       cancelled = true
     }
-  }, [propertyId, form, navigate, reloadToken])
+  }, [propertyId, form, navigate, reloadToken, message])
 
   async function save(values: Record<string, unknown>) {
     if (!propertyId) {

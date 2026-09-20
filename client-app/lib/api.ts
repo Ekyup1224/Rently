@@ -1,6 +1,7 @@
 import type {
-  ApiError, AuthSession, Booking, CalendarDay, HostApplication, ListingDetail, ListingSummary,
-  OtpChallenge, Payment, Quote, User,
+  ApiError, AuthSession, Booking, CalendarDay, Conversation, HostApplication, HotelDetail,
+  ListingDetail, ListingSummary, Message, OtpChallenge, Payment, Quote, Review,
+  RoomTypeAvailability, SupplyType, User,
 } from './types'
 
 /** Shape of every paged endpoint. */
@@ -18,9 +19,13 @@ export interface SearchQuery {
   checkIn?: string
   checkOut?: string
   guests?: number
+  /** PROPERTY, HOTEL, or omit for both. */
+  supplyTypes?: string[]
   types?: string[]
   amenities?: string[]
   instantBook?: boolean
+  /** Minimum hotel rating. Setting it narrows the search to hotels. */
+  starRating?: number
   minPrice?: number
   maxPrice?: number
   sort?: string
@@ -231,13 +236,46 @@ export const api = {
 
   // --- bookings and payments (signed in) -----------------------------------
 
+  hotel: (hotelId: string) =>
+    request<HotelDetail>(`/hotels/${hotelId}`, { anonymous: true }),
+
+  /** Every room type with whether it can take these dates and what it would cost. */
+  hotelAvailability: (hotelId: string, query: {
+    checkIn: string; checkOut: string; guests?: number; rooms?: number
+  }) => request<RoomTypeAvailability[]>(
+    `/hotels/${hotelId}/availability?${searchParams(query as SearchQuery)}`,
+    { anonymous: true }),
+
+  hotelQuote: (hotelId: string, roomTypeId: string, body: {
+    checkIn: string; checkOut: string; guests: number
+  }, rooms = 1) => request<Quote>(
+    `/hotels/${hotelId}/room-types/${roomTypeId}/quote?rooms=${rooms}`,
+    { method: 'POST', body, anonymous: true }),
+
+  /** Books a house (propertyId) or hotel rooms (roomTypeId with rooms). */
   book: (body: {
-    propertyId: string; checkIn: string; checkOut: string; guests: number; message?: string
+    propertyId?: string
+    roomTypeId?: string
+    checkIn: string
+    checkOut: string
+    guests: number
+    rooms?: number
+    message?: string
   }) => request<Booking>('/bookings', { method: 'POST', body }),
 
   bookings: (scope = 'all') => request<Page<Booking>>(`/bookings?scope=${scope}&size=50`),
 
   booking: (bookingId: string) => request<Booking>(`/bookings/${bookingId}`),
+
+  /**
+   * Reports a listing as not what it claims to be. Signing in is required, so a
+   * competitor cannot bury a rival anonymously.
+   */
+  reportListing: (supplyType: SupplyType, supplyId: string,
+                  body: { reason: string; details?: string; bookingId?: string }) =>
+    request<unknown>(
+      `${supplyType === 'HOTEL' ? '/hotels' : '/listings'}/${supplyId}/report`,
+      { method: 'POST', body }),
 
   cancelBooking: (bookingId: string, reason?: string) =>
     request<Booking>(`/bookings/${bookingId}/cancel`, { method: 'POST', body: { reason } }),
@@ -249,6 +287,44 @@ export const api = {
 
   payment: (bookingId: string, paymentId: string) =>
     request<Payment>(`/bookings/${bookingId}/payments/${paymentId}`),
+
+  // --- reviews -------------------------------------------------------------
+
+  /** Public: what other guests said about this place. */
+  listingReviews: (propertyId: string, page = 0) =>
+    request<Page<Review>>(`/listings/${propertyId}/reviews?page=${page}&size=10`,
+      { anonymous: true }),
+
+  hotelReviews: (hotelId: string, page = 0) =>
+    request<Page<Review>>(`/hotels/${hotelId}/reviews?page=${page}&size=10`,
+      { anonymous: true }),
+
+  /** Both reviews of one stay. An unpublished one comes back only to its author. */
+  bookingReviews: (bookingId: string) => request<Review[]>(`/bookings/${bookingId}/reviews`),
+
+  writeReview: (bookingId: string, body: {
+    rating: number
+    subRatings?: Record<string, number>
+    comment?: string
+  }) => request<Review>(`/bookings/${bookingId}/review`, { method: 'POST', body }),
+
+  // --- messages ------------------------------------------------------------
+
+  conversations: () => request<Page<Conversation>>('/conversations?size=50'),
+
+  /** Opens the thread for a booking, creating it the first time. */
+  openConversation: (bookingId: string) =>
+    request<Conversation>(`/conversations/for-booking/${bookingId}`, { method: 'POST' }),
+
+  messages: (conversationId: string) =>
+    request<Page<Message>>(`/conversations/${conversationId}/messages?size=100`),
+
+  sendMessage: (conversationId: string, body: string) =>
+    request<Message>(`/conversations/${conversationId}/messages`,
+      { method: 'POST', body: { body } }),
+
+  markConversationRead: (conversationId: string) =>
+    request<void>(`/conversations/${conversationId}/read`, { method: 'POST' }),
 
   /**
    * Development only: settles a simulated payment as a provider callback would.
@@ -287,6 +363,22 @@ export function describeError(failure: unknown): string {
       return 'You already have this role.'
     case 'organization_name_required':
       return 'Enter the registered business name.'
+    case 'rooms_unavailable':
+      return 'Those rooms have just been taken. Try different dates or another room.'
+    case 'too_many_rooms':
+      return 'That is more rooms than this hotel has of that type.'
+    case 'room_type_not_bookable':
+      return 'That room is not available to book right now.'
+    case 'stay_not_finished':
+      return 'You can review a stay once it is over.'
+    case 'review_window_closed':
+      return 'Reviews close 14 days after checkout.'
+    case 'already_reviewed':
+      return 'You have already reviewed this stay.'
+    case 'invalid_rating':
+      return 'Choose a rating from 1 to 5.'
+    case 'conversation_not_found':
+      return 'That conversation is not yours.'
     default:
       return failure.message
   }

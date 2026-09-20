@@ -17,14 +17,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import mn.innex.stay.IntegrationTest;
 import mn.innex.stay.booking.domain.BookingStatus;
 import mn.innex.stay.booking.repo.BookingRepository;
 import mn.innex.stay.booking.service.BookingService;
 import mn.innex.stay.common.ApiException;
-import mn.innex.stay.listing.domain.CancellationPolicy;
+import mn.innex.stay.common.supply.CancellationPolicy;
 import mn.innex.stay.listing.domain.Property;
 import mn.innex.stay.listing.domain.PropertyPhoto;
 import mn.innex.stay.listing.domain.PropertyType;
@@ -44,7 +43,6 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 /** The house rental loop over HTTP, plus the guarantees that only concurrency reveals. */
 class HouseRentalFlowIntegrationTest extends IntegrationTest {
 
-    private static final AtomicInteger PHONE_SEQUENCE = new AtomicInteger(70_000_000);
 
     @Autowired
     private MockMvc mockMvc;
@@ -307,7 +305,7 @@ class HouseRentalFlowIntegrationTest extends IntegrationTest {
     }
 
     private User createUser(Role role) {
-        User user = User.createWithPhone("+9769" + PHONE_SEQUENCE.incrementAndGet(), "mn");
+        User user = User.createWithPhone(uniquePhone(), "mn");
         user.markPhoneVerified();
         user.setFullName("Test Person");
         user.grantRole(Role.CLIENT, null, null);

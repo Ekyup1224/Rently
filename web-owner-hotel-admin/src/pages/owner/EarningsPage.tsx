@@ -1,21 +1,33 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert, Card, Col, DatePicker, Flex, Row, Space, Spin, Statistic, Table, Typography, message,
+  Alert, App as AntApp, Card, Col, DatePicker, Flex, Row, Skeleton, Table,
 } from 'antd'
+import { CalendarOutlined, PercentageOutlined, RiseOutlined } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
 import { RequestError } from '../../api/client'
 import { owner } from '../../api/endpoints'
 import type { EarningsSummary } from '../../types'
 import { formatMoney } from './listingFormat'
+import { StatTile } from '../../ui/StatTile'
+import { BreakdownChart, TrendChart, type ChartRow } from '../../ui/charts'
+import { palette } from '../../theme'
+import { plural } from '../../ui/plural'
+import { PageHead } from '../../ui/PageHead'
 
 /**
  * A host's earnings.
  *
- * <p>Labelled as earned rather than paid, deliberately: payout automation is Step
- * 5, and a host who reads this as money-in-the-bank and reconciles against their
- * account will not enjoy the experience.
+ * <p>Labelled as earned rather than paid, deliberately. Earning happens when a
+ * stay ends; being paid happens after the guest has checked in, the host is
+ * verified and the listing is unflagged. A host who reconciles this page against
+ * their bank statement will not enjoy the experience, so Payouts is linked from
+ * the first line.
  */
 export function EarningsPage() {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const [range, setRange] = useState<[Dayjs, Dayjs]>([
     dayjs().startOf('year'), dayjs().endOf('year'),
   ])
@@ -51,69 +63,107 @@ export function EarningsPage() {
     return () => {
       cancelled = true
     }
-  }, [from, to])
+  }, [from, to, message])
+
+  const months: ChartRow[] = (summary?.byMonth ?? []).map((entry) => ({
+    month: dayjs(entry.month + '-01').format('MMM YY'),
+    earned: entry.earned,
+    stays: entry.stays,
+  }))
 
   return (
-    <Space orientation="vertical" size="middle" style={{ width: '100%', maxWidth: 900 }}>
-      <Flex align="center" justify="space-between" wrap gap={12}>
-        <Typography.Title level={3} style={{ margin: 0 }}>Earnings</Typography.Title>
-        <DatePicker.RangePicker
-          value={range}
-          allowClear={false}
-          onChange={(values) => {
-            if (values?.[0] && values?.[1]) {
-              setRange([values[0], values[1]])
-            }
-          }}
-        />
-      </Flex>
-
-      <Alert
-        type="info"
-        showIcon
-        message="Earned, not yet paid out"
-        description="Amounts are attributed to when each stay ended. Automated payouts arrive in a later release."
+    <>
+      <PageHead
+        title="Earnings"
+        description={'What you have earned, attributed to when each stay ended. Money is '
+          + 'released for transfer after your guest checks in — see Payouts for where each '
+          + 'amount has got to.'}
+        extra={
+          <DatePicker.RangePicker
+            value={range}
+            allowClear={false}
+            onChange={(values) => {
+              if (values?.[0] && values?.[1]) {
+                setRange([values[0], values[1]])
+              }
+            }}
+          />
+        }
       />
 
-      {loading && <Flex justify="center" style={{ padding: 48 }}><Spin /></Flex>}
+      {loading && <Skeleton active paragraph={{ rows: 8 }} />}
 
       {!loading && summary && (
-        <>
+        <Flex vertical gap={16}>
           <Row gutter={[16, 16]}>
             <Col xs={24} md={8}>
-              <Card>
-                <Statistic
-                  title="Earned from completed stays"
-                  value={formatMoney(summary.earnedFromCompletedStays, summary.currency)}
-                />
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {summary.completedStays} stay(s)
-                </Typography.Text>
-              </Card>
+              <StatTile
+                label="Earned from completed stays"
+                value={formatMoney(summary.earnedFromCompletedStays, summary.currency)}
+                hint={plural(summary.completedStays, 'stay')}
+                icon={<RiseOutlined />}
+                tone="brand"
+              />
             </Col>
             <Col xs={24} md={8}>
-              <Card>
-                <Statistic
-                  title="Confirmed upcoming"
-                  value={formatMoney(summary.confirmedUpcoming, summary.currency)}
-                />
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {summary.upcomingStays} booked stay(s)
-                </Typography.Text>
-              </Card>
+              <StatTile
+                label="Confirmed upcoming"
+                value={formatMoney(summary.confirmedUpcoming, summary.currency)}
+                hint={`${plural(summary.upcomingStays, 'stay')} booked`}
+                icon={<CalendarOutlined />}
+                tone="teal"
+              />
             </Col>
             <Col xs={24} md={8}>
-              <Card>
-                <Statistic
-                  title="Platform fee withheld"
-                  value={formatMoney(summary.commissionWithheld, summary.currency)}
-                />
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  On completed stays
-                </Typography.Text>
-              </Card>
+              <StatTile
+                label="Platform fee withheld"
+                value={formatMoney(summary.commissionWithheld, summary.currency)}
+                hint="On completed stays"
+                icon={<PercentageOutlined />}
+                tone="accent"
+              />
             </Col>
           </Row>
+
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={15}>
+              <TrendChart
+                title="Earned by month"
+                data={months}
+                xKey="month"
+                series={[{ key: 'earned', label: 'Earned' }]}
+                format={(value) => value >= 1_000_000
+                  ? `${(value / 1_000_000).toFixed(1)}M` : `${Math.round(value / 1000)}K`}
+                note="Your share, after commission."
+                height={250}
+              />
+            </Col>
+            <Col xs={24} lg={9}>
+              <BreakdownChart
+                title="Your share of what guests paid"
+                height={250}
+                total={formatMoney(summary.earnedFromCompletedStays, summary.currency)}
+                totalLabel="yours"
+                note="On completed stays in this period."
+                slices={[
+                  { name: 'You keep', value: summary.earnedFromCompletedStays,
+                    colour: palette.brand },
+                  { name: 'Commission', value: summary.commissionWithheld,
+                    colour: palette.accent },
+                ]}
+              />
+            </Col>
+          </Row>
+
+          {summary.confirmedUpcoming > 0 && (
+            <Alert
+              type="info"
+              showIcon
+              message="Upcoming earnings are not yet yours to spend"
+              description={'A booking can still be cancelled, and nothing is released until '
+                + 'the guest actually checks in.'}
+            />
+          )}
 
           <Card title="By month" size="small">
             <Table
@@ -138,8 +188,8 @@ export function EarningsPage() {
               ]}
             />
           </Card>
-        </>
+        </Flex>
       )}
-    </Space>
+    </>
   )
 }

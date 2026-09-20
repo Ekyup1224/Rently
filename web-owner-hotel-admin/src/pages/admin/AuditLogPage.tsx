@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { Button, Card, Flex, Input, Space, Tag, Typography, message } from 'antd'
+import { App as AntApp, Button, Card, Flex, Input, Space, Tag } from 'antd'
 import { AgGridReact } from 'ag-grid-react'
 import type {
   ColDef, GridApi, GridReadyEvent, ICellRendererParams, IDatasource, IGetRowsParams,
@@ -9,11 +9,16 @@ import dayjs from 'dayjs'
 import { admin } from '../../api/endpoints'
 import { RequestError } from '../../api/client'
 import type { AuditLogRow } from '../../types'
+import { PageHead } from '../../ui/PageHead'
 
 const PAGE_SIZE = 50
 
 /** Read-only view of the append-only audit trail. */
 export function AuditLogPage() {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const gridApi = useRef<GridApi<AuditLogRow> | null>(null)
   const [action, setAction] = useState('')
   const [targetId, setTargetId] = useState('')
@@ -36,7 +41,7 @@ export function AuditLogPage() {
         params.failCallback()
       }
     },
-  }), [])
+  }), [message])
 
   const onGridReady = useCallback((event: GridReadyEvent<AuditLogRow>) => {
     gridApi.current = event.api
@@ -81,7 +86,10 @@ export function AuditLogPage() {
 
   return (
     <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-      <Typography.Title level={3} style={{ margin: 0 }}>Audit log</Typography.Title>
+      <PageHead
+        title="Audit log"
+        description={'Every consequential action, who took it and when. Read-only by design.'}
+      />
 
       <Card size="small">
         <Flex gap={12} wrap>

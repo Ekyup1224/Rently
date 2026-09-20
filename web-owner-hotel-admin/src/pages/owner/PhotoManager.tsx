@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
-import { Button, Card, Flex, Image, Popconfirm, Space, Tag, Typography, Upload, message } from 'antd'
+import {
+  App as AntApp, Button, Card, Flex, Image, Popconfirm, Space, Tag, Typography, Upload,
+} from 'antd'
 import type { UploadProps } from 'antd'
 import { RequestError } from '../../api/client'
 import { owner, putToStorage } from '../../api/endpoints'
@@ -18,6 +20,10 @@ const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp']
 export function PhotoManager({
   propertyId, photos, onChanged,
 }: { propertyId: string; photos: Photo[]; onChanged: () => void }) {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const [busy, setBusy] = useState(false)
   const dragged = useRef<string | null>(null)
 

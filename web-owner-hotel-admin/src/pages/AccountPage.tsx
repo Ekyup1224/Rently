@@ -1,11 +1,16 @@
 import { useState } from 'react'
-import { Button, Card, Form, Input, Select, Space, Typography, message } from 'antd'
+import { App as AntApp, Button, Card, Form, Input, Select, Space } from 'antd'
 import { users } from '../api/endpoints'
 import { RequestError } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
+import { PageHead } from '../ui/PageHead'
 
 /** Self-service profile editing, wired to PATCH /users/me. */
 export function AccountPage() {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const { user, reload } = useAuth()
   const [busy, setBusy] = useState(false)
 
@@ -28,7 +33,10 @@ export function AccountPage() {
 
   return (
     <Space orientation="vertical" size="large" style={{ width: '100%', maxWidth: 560 }}>
-      <Typography.Title level={3} style={{ margin: 0 }}>My account</Typography.Title>
+      <PageHead
+        title="Your account"
+        description={'Your details and your identity check. No money leaves the platform to an unverified account.'}
+      />
       <Card>
         <Form
           layout="vertical"

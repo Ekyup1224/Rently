@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Alert, Button, Card, Checkbox, Flex, InputNumber, Space, Spin, Switch, Typography, message,
+  Alert, App as AntApp, Button, Card, Checkbox, Flex, InputNumber, Space, Spin, Switch,
+  Typography,
 } from 'antd'
 import { useNavigate, useParams } from 'react-router-dom'
 import dayjs, { type Dayjs } from 'dayjs'
@@ -8,6 +9,8 @@ import { RequestError } from '../../api/client'
 import { owner } from '../../api/endpoints'
 import type { CalendarDay, DayStatus, Property } from '../../types'
 import { formatMoney } from './listingFormat'
+import { PageHead } from '../../ui/PageHead'
+import { plural } from '../../ui/plural'
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const WEEKDAY_NAMES = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
@@ -29,6 +32,10 @@ const STATUS_STYLE: Record<DayStatus, { background: string; border: string; labe
  * unblocking it, and pretending otherwise would be the worst kind of bug.
  */
 export function CalendarPage() {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const { propertyId } = useParams<{ propertyId: string }>()
   const navigate = useNavigate()
 
@@ -77,7 +84,7 @@ export function CalendarPage() {
     return () => {
       cancelled = true
     }
-  }, [propertyId, from, to, reloadToken])
+  }, [propertyId, from, to, reloadToken, message])
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), [])
 
@@ -147,7 +154,7 @@ export function CalendarPage() {
         minStayNights: minStay ?? undefined,
         clearMinStay: minStay === null,
       })
-      message.success(`${result.daysUpdated} day(s) updated`)
+      message.success(`${plural(result.daysUpdated, 'day')} updated`)
       setRangeStart(null)
       setRangeEnd(null)
       reload()
@@ -166,7 +173,7 @@ export function CalendarPage() {
     setBusy(true)
     try {
       const result = await owner.clearCalendar(propertyId, low, high)
-      message.success(`${result.daysCleared} override(s) cleared`)
+      message.success(`${plural(result.daysCleared, 'override')} cleared`)
       setRangeStart(null)
       setRangeEnd(null)
       reload()
@@ -186,7 +193,10 @@ export function CalendarPage() {
       <Flex align="center" justify="space-between" wrap gap={12}>
         <Space>
           <Button onClick={() => navigate('/properties')}>Back</Button>
-          <Typography.Title level={3} style={{ margin: 0 }}>{listing.title}</Typography.Title>
+          <PageHead
+        title="Calendar"
+        description={'Which nights are free, and what each one costs.'}
+      />
         </Space>
         <Space>
           <Button onClick={() => setMonth(month.subtract(1, 'month'))}>←</Button>

@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation'
 import { api, describeError } from '@/lib/api'
 import { addDays, formatMoney, nightsBetween, todayInUlaanbaatar } from '@/lib/format'
 import type { ListingDetail, Quote } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { useAuth } from './AuthProvider'
+import { QuoteBreakdown } from './QuoteBreakdown'
 
 /**
  * Date selection, live pricing and booking.
@@ -25,6 +27,7 @@ export function BookingWidget({
   initialGuests: number
 }) {
   const { user } = useAuth()
+  const t = useT()
   const router = useRouter()
   const today = todayInUlaanbaatar()
 
@@ -39,9 +42,6 @@ export function BookingWidget({
   const [bookingError, setBookingError] = useState<string | null>(null)
 
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0
-  const mixedNightlyRates = quote
-    ? new Set(quote.nightlyRates.map((rate) => rate.amount)).size > 1
-    : false
 
   // Re-quote whenever the stay changes. The server is the only thing that knows
   // what these dates cost, or whether they are even bookable.
@@ -111,7 +111,7 @@ export function BookingWidget({
 
       <div className="grid-2">
         <label className="field">
-          <span className="field__label">Check in</span>
+          <span className="field__label">{t('search.checkIn')}</span>
           <input
             type="date"
             min={today}
@@ -126,7 +126,7 @@ export function BookingWidget({
           />
         </label>
         <label className="field">
-          <span className="field__label">Check out</span>
+          <span className="field__label">{t('search.checkOut')}</span>
           <input
             type="date"
             min={checkIn ? addDays(checkIn, 1) : addDays(today, 1)}
@@ -137,7 +137,7 @@ export function BookingWidget({
       </div>
 
       <label className="field">
-        <span className="field__label">Guests</span>
+        <span className="field__label">{t('search.guests')}</span>
         <select value={guests} onChange={(event) => setGuests(Number(event.target.value))}>
           {Array.from({ length: listing.maxGuests }, (_, index) => index + 1).map((count) => (
             <option key={count} value={count}>
@@ -149,93 +149,21 @@ export function BookingWidget({
 
       {!listing.instantBook && (
         <label className="field">
-          <span className="field__label">Message to the host (optional)</span>
+          <span className="field__label">{t('book.messageHost')}</span>
           <textarea
             rows={3}
             maxLength={2000}
-            placeholder="Tell them a little about your trip"
+            placeholder={t('book.messageHostPlaceholder')}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
           />
         </label>
       )}
 
-      {quoting && <p className="muted small">Checking availability…</p>}
+      {quoting && <p className="muted small">{t('book.checking')}</p>}
       {quoteError && <div className="alert alert--error">{quoteError}</div>}
 
-      {quote && (
-        <div style={{ borderTop: '1px solid var(--line)', paddingTop: 12, marginBottom: 12 }}>
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span>
-              {mixedNightlyRates
-                // Averaging would print a multiplication that does not equal the
-                // subtotal, which is worse than not showing one. The per-night
-                // list below carries the detail instead.
-                ? `${quote.nights} night${quote.nights > 1 ? 's' : ''}`
-                : `${formatMoney(quote.nightlyRates[0].amount, quote.currency)} × `
-                  + `${quote.nights} night${quote.nights > 1 ? 's' : ''}`}
-            </span>
-            <span>{formatMoney(quote.nightlySubtotal, quote.currency)}</span>
-          </div>
-
-          {mixedNightlyRates && (
-            <details style={{ marginTop: 6 }}>
-              <summary className="muted small" style={{ cursor: 'pointer' }}>
-                Some nights are priced differently
-              </summary>
-              <ul className="small muted" style={{ paddingInlineStart: 18, margin: '4px 0 0' }}>
-                {quote.nightlyRates.map((rate) => (
-                  <li key={rate.date}>
-                    {new Date(rate.date + 'T00:00:00').toLocaleDateString('en-US',
-                      { weekday: 'short', day: 'numeric', month: 'short' })}
-                    {' — '}{formatMoney(rate.amount, quote.currency)}
-                    {rate.overridden ? ' (special rate)' : ''}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-          {quote.cleaningFee > 0 && (
-            <div className="row" style={{ justifyContent: 'space-between', marginTop: 6 }}>
-              <span>Cleaning fee</span>
-              <span>{formatMoney(quote.cleaningFee, quote.currency)}</span>
-            </div>
-          )}
-          {quote.guestServiceFee > 0 && (
-            <div className="row" style={{ justifyContent: 'space-between', marginTop: 6 }}>
-              <span>Service fee</span>
-              <span>{formatMoney(quote.guestServiceFee, quote.currency)}</span>
-            </div>
-          )}
-          {quote.tax > 0 && (
-            <div className="row" style={{ justifyContent: 'space-between', marginTop: 6 }}>
-              <span>Tax</span>
-              <span>{formatMoney(quote.tax, quote.currency)}</span>
-            </div>
-          )}
-          <div
-            className="row"
-            style={{ justifyContent: 'space-between', marginTop: 10, paddingTop: 10,
-                     borderTop: '1px solid var(--line)', fontWeight: 650 }}
-          >
-            <span>Total</span>
-            <span>{formatMoney(quote.total, quote.currency)}</span>
-          </div>
-
-          <details style={{ marginTop: 10 }}>
-            <summary className="muted small" style={{ cursor: 'pointer' }}>
-              Cancellation terms ({quote.cancellationPolicy.toLowerCase()})
-            </summary>
-            <ul className="small muted" style={{ paddingInlineStart: 18, marginBottom: 0 }}>
-              {quote.refundSchedule.map((window) => (
-                <li key={window.cancelBefore}>
-                  {window.description} — {formatMoney(window.refundAmount, quote.currency)} back
-                </li>
-              ))}
-            </ul>
-          </details>
-        </div>
-      )}
+      {quote && <QuoteBreakdown quote={quote} />}
 
       {bookingError && <div className="alert alert--error">{bookingError}</div>}
 
@@ -247,17 +175,17 @@ export function BookingWidget({
           onClick={submit}
         >
           {booking
-            ? 'Working…'
-            : listing.instantBook ? 'Book now' : 'Request to book'}
+            ? t('book.working')
+            : listing.instantBook ? t('book.bookNow') : t('book.request')}
         </button>
       ) : (
-        <Link href="/login" className="button button--block">Sign in to book</Link>
+        <Link href="/login" className="button button--block">{t('book.signInToBook')}</Link>
       )}
 
       <p className="muted small" style={{ marginTop: 8, marginBottom: 0 }}>
         {listing.instantBook
-          ? 'You will pay in the next step. Nothing is charged until then.'
-          : 'The host has 24 hours to respond. You only pay once they accept.'}
+          ? t('book.payNextStep')
+          : t('book.hostHas24h')}
       </p>
     </div>
   )

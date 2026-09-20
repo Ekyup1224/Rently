@@ -8,7 +8,7 @@ import java.util.List;
 
 import mn.innex.stay.common.Money;
 import mn.innex.stay.common.PlatformTime;
-import mn.innex.stay.listing.domain.CancellationPolicy;
+import mn.innex.stay.common.supply.CancellationPolicy;
 import org.springframework.stereotype.Component;
 
 /**

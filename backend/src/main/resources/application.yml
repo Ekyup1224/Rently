@@ -65,8 +65,19 @@ app:
     resend-cooldown: 60s
     max-per-hour: 5
     lockout: 15m
-    # Dev convenience: OTP codes are logged instead of sent by SMS.
-    delivery: log
+    # Dev convenience: OTP codes are logged instead of sent by SMS. A deployment
+    # sets OTP_DELIVERY=sms.
+    delivery: ${OTP_DELIVERY:log}
+    # Dev convenience, and nothing else: the code comes back in the request
+    # response so a local sign-in does not mean tailing the log. Deploying sets
+    # OTP_DELIVERY=sms, which disables this on its own even if the flag is left
+    # on, and OTP_EXPOSE_CODE=false turns it off outright.
+    expose-code-in-response: ${OTP_EXPOSE_CODE:true}
+  trust:
+    # Released 24 hours after check-in day starts: long enough for a guest to
+    # arrive and report a listing that does not exist, short enough that honest
+    # hosts are not pushed towards off-platform payment.
+    payout-hold: 24h
   storage:
     s3:
       endpoint: ${S3_ENDPOINT:http://localhost:9000}

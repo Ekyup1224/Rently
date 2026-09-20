@@ -155,6 +155,19 @@ def upload_photo(owner_token, property_id):
                 token=owner_token)
 
 
+
+def retire(admin_token, listings=()):
+    """Takes this run's supply back off sale.
+
+    A smoke test that publishes a listing and walks away leaves it in live
+    search, so after a dozen runs the demo front page is a wall of fixtures.
+    Suspending rather than deleting, because bookings and payouts reference
+    these rows — the same reason the product suspends rather than deletes.
+    """
+    for listing_id in listings:
+        call("PATCH", f"/admin/properties/{listing_id}/status",
+             {"status": "SUSPENDED", "reason": "Smoke test fixture"}, token=admin_token)
+
 def main():
     global LOG_PATH
     parser = argparse.ArgumentParser()
@@ -202,7 +215,7 @@ def main():
 
     print("\nlisting creation")
     status, listing = call("POST", "/owner/properties",
-                           {"title": "Ger camp by the river", "propertyType": "GER",
+                           {"title": f"Ger camp by the river {stamp}", "propertyType": "GER",
                             "city": "Ulaanbaatar", "maxGuests": 4}, token=owner_token)
     if not check("draft created", status == 201 and listing.get("status") == "DRAFT", listing):
         return report()
@@ -513,6 +526,7 @@ def main():
          {"scope": "GLOBAL", "hostFeePercent": 10, "guestFeePercent": 0,
           "note": "restore launch rate"}, token=admin_token)
 
+    retire(admin_token, listings=[property_id])
     return report()
 
 

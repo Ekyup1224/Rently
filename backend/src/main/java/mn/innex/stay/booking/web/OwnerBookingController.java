@@ -87,6 +87,31 @@ public class OwnerBookingController {
     }
 
     /**
+     * Marks a guest arrived.
+     *
+     * <p>A house has no front desk, so this is the host saying the guest turned
+     * up. It is not bookkeeping: no payout is released until a stay has actually
+     * started, so a host who never confirms an arrival is never paid — which is
+     * exactly what should happen to a listing nobody could arrive at.
+     */
+    @PostMapping("/bookings/{bookingId}/check-in")
+    public BookingResponse checkIn(@PathVariable UUID bookingId,
+                                   HttpServletRequest httpRequest) {
+        bookingService.requireForHost(CurrentActor.requireUserId(), bookingId);
+        return BookingResponse.forHost(bookingService.checkIn(
+                CurrentActor.requireUserId(), bookingId, ClientIp.of(httpRequest)), storage);
+    }
+
+    /** Marks the stay finished, which is what opens the review window. */
+    @PostMapping("/bookings/{bookingId}/check-out")
+    public BookingResponse checkOut(@PathVariable UUID bookingId,
+                                    HttpServletRequest httpRequest) {
+        bookingService.requireForHost(CurrentActor.requireUserId(), bookingId);
+        return BookingResponse.forHost(bookingService.checkOut(
+                CurrentActor.requireUserId(), bookingId, ClientIp.of(httpRequest)), storage);
+    }
+
+    /**
      * Host-initiated cancellation. The guest is refunded in full regardless of the
      * listing's policy — they did not choose this.
      */

@@ -37,6 +37,11 @@ export interface AuthSession {
 export interface OtpChallenge {
   message: string
   resendAfterSeconds: number
+  /**
+   * The code itself, returned only by a development server. Absent in any real
+   * deployment, where the code arrives by SMS and nowhere else.
+   */
+  devCode?: string
 }
 
 export interface HostApplication {
@@ -73,27 +78,44 @@ export interface Photo {
   cover: boolean
 }
 
-/** One search result card. */
+export type SupplyType = 'PROPERTY' | 'HOTEL'
+
+/**
+ * One search result card, for either supply type.
+ *
+ * <p>`supplyType` says which it is and where it links: `/listings/{id}` for a
+ * house, `/hotels/{id}` for a hotel. Fields that apply to only one type are
+ * absent on the other rather than faked — `bedrooms` for a hotel, `starRating`
+ * for a house.
+ */
 export interface ListingSummary {
+  supplyType: SupplyType
   id: string
   title: string
-  propertyType: PropertyType
+  propertyType?: PropertyType
+  starRating?: number
   city: string
   district?: string
   latitude?: number
   longitude?: number
+  /** For a hotel, the cheapest room type's rate. */
   nightlyFrom: number
   cleaningFee: number
   currency: string
   maxGuests: number
-  bedrooms: number
-  beds: number
-  bathrooms: number
+  bedrooms?: number
+  beds?: number
+  bathrooms?: number
   instantBook: boolean
   cancellationPolicy: CancellationPolicy
   minStayNights: number
   coverPhotoUrl?: string
   photoCount: number
+  /** Hotels only. */
+  roomTypeCount?: number
+  /** Guest reviews. Null until this listing has a published one. */
+  ratingAverage?: number
+  ratingCount: number
 }
 
 export interface ListingDetail {
@@ -122,6 +144,9 @@ export interface ListingDetail {
   cancellationPolicy: CancellationPolicy
   instantBook: boolean
   photos: Photo[]
+  /** Guest reviews. Null until the first is published. */
+  ratingAverage?: number
+  ratingCount: number
   host: { displayName: string; since: string; identityVerified: boolean }
 }
 
@@ -135,7 +160,11 @@ export interface CalendarDay {
 }
 
 export interface Quote {
-  propertyId: string
+  supplyType: SupplyType
+  /** The property or room type that was priced. */
+  supplyId: string
+  /** Rooms priced, for a hotel stay; always 1 for a house. */
+  rooms: number
   checkIn: string
   checkOut: string
   nights: number
@@ -181,7 +210,21 @@ export interface Booking {
   expiresAt?: string
   confirmedAt?: string
   createdAt: string
-  listing?: { id: string; title: string; city: string; district?: string; coverPhotoUrl?: string }
+  /**
+   * The supply booked. `supplyType` decides where the card links — `/listings/{id}`
+   * for a house, `/hotels/{id}` for a hotel — and `roomTypeName` is what
+   * distinguishes two reservations at the same hotel.
+   */
+  listing?: {
+    id: string
+    title: string
+    city: string
+    district?: string
+    coverPhotoUrl?: string
+    supplyType: SupplyType
+    roomTypeName?: string
+    rooms?: number
+  }
   counterpartyName?: string
 }
 
@@ -199,4 +242,106 @@ export interface Payment {
   paidAt?: string
   failureMessage?: string
   createdAt: string
+}
+
+// --- Step 3: hotels ---------------------------------------------------------
+
+export interface HotelRoomType {
+  id: string
+  name: string
+  description?: string
+  /** Guests per room. Several rooms can be booked together. */
+  capacity: number
+  bedConfig?: string
+  sizeSqm?: number
+  nightlyFrom: number
+  amenities: string[]
+  minStayNights: number
+  maxStayNights?: number
+  photos: Photo[]
+}
+
+export interface HotelDetail {
+  id: string
+  name: string
+  description?: string
+  starRating?: number
+  /** Published, unlike a private home's address. */
+  addressLine?: string
+  district?: string
+  city: string
+  country: string
+  latitude?: number
+  longitude?: number
+  amenities: string[]
+  policies?: string
+  checkInFrom?: string
+  checkOutBy?: string
+  currency: string
+  cancellationPolicy: CancellationPolicy
+  photos: Photo[]
+  /** Guest reviews. Distinct from starRating, which is the official class. */
+  ratingAverage?: number
+  ratingCount: number
+  roomTypes: HotelRoomType[]
+}
+
+/**
+ * Whether a room type can take a stay, and what it would cost.
+ *
+ * @property roomsLeft the fewest rooms free across the stay's nights — a stay
+ *   needs every night, so the tightest night decides
+ */
+export interface RoomTypeAvailability {
+  roomTypeId: string
+  name: string
+  capacity: number
+  bookable: boolean
+  unavailableReason?: string
+  roomsLeft: number
+  nightlyFrom: number
+  totalForStay?: number
+  currency: string
+  photos: Photo[]
+}
+
+/** A review as anyone may read it. Never carries a phone number. */
+export interface Review {
+  id: string
+  bookingId: string
+  /** SUPPLY when a guest reviewed the place, GUEST when a host reviewed the person. */
+  subject: 'SUPPLY' | 'GUEST'
+  authorName: string
+  rating: number
+  subRatings: Record<string, number> | null
+  comment: string | null
+  response: string | null
+  respondedAt: string | null
+  /** False while the blind period is still running. Only its author sees it. */
+  visible: boolean
+  createdAt: string
+}
+
+/** One booking's message thread, as one of its two participants sees it. */
+export interface Conversation {
+  id: string
+  bookingId: string
+  bookingReference: string
+  listingTitle: string
+  /** The other person's first name. */
+  withName: string
+  checkIn: string
+  checkOut: string
+  unread: number
+  lastMessageAt: string | null
+}
+
+export interface Message {
+  id: string
+  body: string
+  mine: boolean
+  senderName: string
+  /** Only ever set on your own messages, and only when they were flagged. */
+  flaggedReason: string | null
+  sentAt: string
 }

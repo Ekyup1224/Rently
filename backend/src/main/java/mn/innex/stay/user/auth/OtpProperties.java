@@ -14,6 +14,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param maxPerHour        codes per destination per rolling hour
  * @param lockout           how long a destination is frozen after exhausting attempts
  * @param delivery          {@code log} writes codes to the log; {@code sms} uses the carrier gateway
+ * @param exposeCodeInResponse dev only — returns the code to the caller so a local
+ *                          sign-in needs no log tailing. Ignored unless delivery is
+ *                          {@code log}, so switching on real SMS switches this off
+ *                          with it, and it must be turned on explicitly besides.
  */
 @ConfigurationProperties(prefix = "app.otp")
 public record OtpProperties(
@@ -23,5 +27,11 @@ public record OtpProperties(
         Duration resendCooldown,
         int maxPerHour,
         Duration lockout,
-        String delivery) {
+        String delivery,
+        boolean exposeCodeInResponse) {
+
+    /** Whether a freshly issued code may be handed back to the client. */
+    public boolean devCodeVisible() {
+        return exposeCodeInResponse && "log".equalsIgnoreCase(delivery);
+    }
 }

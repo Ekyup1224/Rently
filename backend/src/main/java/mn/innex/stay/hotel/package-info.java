@@ -1,8 +1,12 @@
 /**
- * Hotel supply owned by an organization: Hotel, RoomType, RoomInventoryDay, staff scoping.
- * Filled in during Step 3 (hotel loop).
+ * Hotel supply: hotels owned by an organization, their room types, counted
+ * per-day inventory, and staff assignments.
  *
- * <p>Module boundary per build-spec section 3: other modules depend on this
- * package only through its published service interfaces, never on its entities.
+ * <p>This module deliberately has <strong>no dependency on {@link mn.innex.stay.booking}</strong>.
+ * It never needs one: the rooms sold on a given night live on
+ * {@link mn.innex.stay.hotel.domain.RoomInventoryDay#getBookedCount()}, maintained
+ * by a database trigger, so availability and occupancy are answerable from hotel
+ * data alone. Anything that genuinely needs reservations -- the front desk, the
+ * revenue report -- lives in the booking module instead.
  */
 package mn.innex.stay.hotel;

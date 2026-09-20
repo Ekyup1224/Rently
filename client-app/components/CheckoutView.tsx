@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { api, describeError } from '@/lib/api'
-import { formatDateRange, formatMoney } from '@/lib/format'
+import { formatDateRange, formatDateTime, formatMoney } from '@/lib/format'
 import type { Booking, Payment } from '@/lib/types'
+import { useLanguage } from '@/lib/i18n'
 import { useAuth } from './AuthProvider'
 
 /** How often to ask whether an out-of-band QR payment has settled. */
@@ -20,6 +21,7 @@ const POLL_INTERVAL_MS = 3000
  */
 export function CheckoutView({ bookingId }: { bookingId: string }) {
   const { user, loading: authLoading } = useAuth()
+  const { t, locale } = useLanguage()
   const [booking, setBooking] = useState<Booking | null>(null)
   const [payment, setPayment] = useState<Payment | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -112,13 +114,13 @@ export function CheckoutView({ bookingId }: { bookingId: string }) {
   }
 
   if (authLoading) {
-    return <p className="muted">Loading…</p>
+    return <p className="muted">{t('common.loading')}</p>
   }
   if (!user) {
     return (
       <div className="card">
-        <p style={{ marginTop: 0 }}>Sign in to complete this booking.</p>
-        <Link href="/login" className="button">Sign in</Link>
+        <p style={{ marginTop: 0 }}>{t('checkout.signInBody')}</p>
+        <Link href="/login" className="button">{t('nav.signIn')}</Link>
       </div>
     )
   }
@@ -126,7 +128,7 @@ export function CheckoutView({ bookingId }: { bookingId: string }) {
     return <div className="alert alert--error">{error}</div>
   }
   if (!booking) {
-    return <p className="muted">Loading your booking…</p>
+    return <p className="muted">{t('checkout.loadingBooking')}</p>
   }
 
   const paid = booking.status === 'CONFIRMED' || booking.paymentStatus === 'PAID';
@@ -136,19 +138,19 @@ export function CheckoutView({ bookingId }: { bookingId: string }) {
 
   return (
     <>
-      <h1>{paid ? 'You are booked' : 'Confirm and pay'}</h1>
+      <h1>{paid ? t('checkout.booked') : t('checkout.confirmAndPay')}</h1>
 
       <div className="card">
-        <h2 className="card__title">{booking.listing?.title ?? 'Your stay'}</h2>
+        <h2 className="card__title">{booking.listing?.title ?? t('trips.yourStay')}</h2>
         <dl className="definition">
-          <dt>Dates</dt>
-          <dd>{formatDateRange(booking.checkIn, booking.checkOut)}
+          <dt>{t('checkout.dates')}</dt>
+          <dd>{formatDateRange(booking.checkIn, booking.checkOut, locale)}
             {' · '}{booking.nights} night{booking.nights > 1 ? 's' : ''}</dd>
-          <dt>Guests</dt>
+          <dt>{t('search.guests')}</dt>
           <dd>{booking.guestCount}</dd>
-          <dt>Reference</dt>
+          <dt>{t('checkout.reference')}</dt>
           <dd>{booking.reference}</dd>
-          <dt>Total</dt>
+          <dt>{t('book.total')}</dt>
           <dd><strong>{formatMoney(booking.total, booking.currency)}</strong></dd>
         </dl>
       </div>
@@ -156,17 +158,16 @@ export function CheckoutView({ bookingId }: { bookingId: string }) {
       {paid && (
         <div className="card">
           <div className="alert alert--info" style={{ marginBottom: 12 }}>
-            Payment received. Your stay is confirmed and the host has been told.
+            {t('checkout.paymentReceived')}
           </div>
-          <Link href="/trips" className="button">View your trips</Link>
+          <Link href="/trips" className="button">{t('home.viewTrips')}</Link>
         </div>
       )}
 
       {!paid && booking.status !== 'PENDING_PAYMENT' && (
         <div className="card">
           <div className="alert alert--error" style={{ marginBottom: 0 }}>
-            This booking is no longer awaiting payment (it is {booking.status
-              .toLowerCase().replace(/_/g, ' ')}). Nothing has been charged.
+            {t('checkout.notAwaiting', { status: t(`status.${booking.status}`) })}
           </div>
         </div>
       )}
@@ -175,8 +176,8 @@ export function CheckoutView({ bookingId }: { bookingId: string }) {
         <div className="card">
           {booking.expiresAt && (
             <p className="muted small" style={{ marginTop: 0 }}>
-              These dates are held for you until{' '}
-              {new Date(booking.expiresAt).toLocaleString()}.
+              {t('checkout.heldUntil')}{' '}
+              {formatDateTime(booking.expiresAt, locale)}.
             </p>
           )}
 
@@ -185,16 +186,19 @@ export function CheckoutView({ bookingId }: { bookingId: string }) {
           {!payment && (
             <button type="button" className="button button--block"
                     disabled={starting} onClick={startPayment}>
-              {starting ? 'Opening…' : `Pay ${formatMoney(booking.total, booking.currency)}`}
+              {starting
+                ? t('checkout.opening')
+                : t('checkout.payAmount', {
+                  amount: formatMoney(booking.total, booking.currency),
+                })}
             </button>
           )}
 
           {payment?.status === 'PENDING' && (
             <>
-              <h2 className="card__title">Scan to pay</h2>
+              <h2 className="card__title">{t('checkout.scanToPay')}</h2>
               <p className="muted small" style={{ marginTop: 0 }}>
-                Open your banking app and scan, or pick your bank below. This page
-                updates by itself once the payment lands.
+                {t('checkout.scanHelp')}
               </p>
 
               {qrText && (
@@ -214,17 +218,16 @@ export function CheckoutView({ bookingId }: { bookingId: string }) {
                 </div>
               )}
 
-              <p className="muted small">Waiting for payment…</p>
+              <p className="muted small">{t('checkout.waiting')}</p>
 
               {simulated && (
                 <>
                   <div className="alert alert--info">
-                    This is a simulated payment provider, standing in until the QPay
-                    merchant account is live. No money moves.
+                    {t('checkout.simulatedNotice')}
                   </div>
                   <button type="button" className="button button--block"
                           disabled={settling} onClick={simulate}>
-                    {settling ? 'Settling…' : 'Simulate a successful payment'}
+                    {settling ? t('checkout.settling') : t('checkout.simulatePay')}
                   </button>
                 </>
               )}

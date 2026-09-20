@@ -5,7 +5,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-import mn.innex.stay.listing.domain.CancellationPolicy;
+import mn.innex.stay.booking.domain.BookingType;
+import mn.innex.stay.common.supply.CancellationPolicy;
 
 /**
  * A priced stay: what the guest would pay, what the host would receive, and the
@@ -16,14 +17,19 @@ import mn.innex.stay.listing.domain.CancellationPolicy;
  * breakdown server-side, so a tampered browser changes nothing.
  *
  * @param nightlyRates    per-night prices, showing where weekend or seasonal
- *                        overrides applied rather than just a total
+ *                        overrides applied rather than just a total. For a hotel
+ *                        stay each amount already covers every room booked.
  * @param guestServiceFee platform fee added on top of the accommodation
  * @param hostPayout      total accommodation minus commission; derived by
  *                        subtraction so the split always reconciles
  * @param refundSchedule  what a cancellation returns, at each policy boundary
  */
 public record Quote(
-        UUID propertyId,
+        BookingType supplyType,
+        /** The property for a house, or the room type for a hotel stay. */
+        UUID supplyId,
+        /** Rooms of that type. Always 1 for a house. */
+        int rooms,
         LocalDate checkIn,
         LocalDate checkOut,
         int nights,

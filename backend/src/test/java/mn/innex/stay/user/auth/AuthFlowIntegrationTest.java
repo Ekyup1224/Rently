@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.concurrent.atomic.AtomicInteger;
 
 import mn.innex.stay.IntegrationTest;
 import mn.innex.stay.user.domain.UserStatus;
@@ -24,7 +23,6 @@ import org.springframework.test.web.servlet.MvcResult;
 class AuthFlowIntegrationTest extends IntegrationTest {
 
     /** Each test uses its own number so per-destination rate limits stay independent. */
-    private static final AtomicInteger PHONE_SEQUENCE = new AtomicInteger(10_000_000);
 
     @Autowired
     private MockMvc mockMvc;
@@ -42,7 +40,7 @@ class AuthFlowIntegrationTest extends IntegrationTest {
 
     @BeforeEach
     void setUp() {
-        phone = "+9769" + PHONE_SEQUENCE.incrementAndGet();
+        phone = uniquePhone();
         smsSender.clear();
     }
 
@@ -228,6 +226,22 @@ class AuthFlowIntegrationTest extends IntegrationTest {
                         .content("{\"phone\":\"" + phone + "\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("account_not_active"));
+    }
+
+    @Test
+    @DisplayName("the development configuration returns the code, and it is the real one")
+    void devConfigurationReturnsTheCode() throws Exception {
+        MvcResult issued = mockMvc.perform(post("/api/v1/auth/otp/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"" + phone + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.devCode").exists())
+                .andReturn();
+
+        // Worth asserting rather than assuming: a code that does not actually work
+        // would send someone back to the log, which is the whole point of this.
+        assertThat(readJson(issued, "devCode")).isEqualTo(smsSender.lastCodeFor(phone));
+        verifyCode(readJson(issued, "devCode")).andExpect(status().isOk());
     }
 
     @Test

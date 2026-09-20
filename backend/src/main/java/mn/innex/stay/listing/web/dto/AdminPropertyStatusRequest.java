@@ -2,7 +2,7 @@ package mn.innex.stay.listing.web.dto;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import mn.innex.stay.listing.domain.PropertyStatus;
+import mn.innex.stay.common.supply.SupplyStatus;
 
 /**
  * Review decision on a listing.
@@ -11,6 +11,6 @@ import mn.innex.stay.listing.domain.PropertyStatus;
  *               listing without being told what is wrong
  */
 public record AdminPropertyStatusRequest(
-        @NotNull PropertyStatus status,
+        @NotNull SupplyStatus status,
         @Size(max = 2000) String reason) {
 }

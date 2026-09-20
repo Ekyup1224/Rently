@@ -1,7 +1,11 @@
 import { request } from './client'
 import type {
-  AuditLogRow, AuthSession, Booking, CalendarDay, CommissionRule, EarningsSummary, KycStatus,
-  OtpChallenge, Page, Photo, Property, PropertyStatus, PropertyType, Role, User, UserStatus,
+  AuditLogRow, AuthSession, Booking, CalendarDay, CommissionRule, EarningsSummary, Hotel,
+  AdminPayment, AnalyticsOverview, AnalyticsPoint, HostApplication, KycStatus, KycSubmission,
+  Conversation, FlaggedMessage, ListingFlag, Message, ModeratedReview, OccupancyReport,
+  OtpChallenge, Page, PaymentDetail, Payout, PayoutBatch, Photo, Property, PropertyStatus,
+  PropertyType, Role, RoomType, RoomTypeInventory, StaffMember, SupplyStatus, TransferLine,
+  User, UserStatus,
 } from '../types'
 
 export const auth = {
@@ -43,10 +47,19 @@ export interface UserQuery {
   sort?: string
 }
 
-function queryString(params: Record<string, string | number | undefined>): string {
+function queryString(
+  params: Record<string, string | number | string[] | undefined>,
+): string {
   const search = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') {
+    if (value === undefined || value === '') {
+      continue
+    }
+    // Repeated rather than comma-joined: Spring binds `?status=A&status=B` to a
+    // List, which is how the trust queues filter by several statuses at once.
+    if (Array.isArray(value)) {
+      value.forEach((entry) => search.append(key, entry))
+    } else {
       search.set(key, String(value))
     }
   }
@@ -154,6 +167,13 @@ export const owner = {
   cancelBooking: (bookingId: string, reason?: string) =>
     request<Booking>(`/owner/bookings/${bookingId}/cancel`, { method: 'POST', body: { reason } }),
 
+  /** A house has no front desk, so the host confirms the guest turned up. */
+  checkIn: (bookingId: string) =>
+    request<Booking>(`/owner/bookings/${bookingId}/check-in`, { method: 'POST' }),
+
+  checkOut: (bookingId: string) =>
+    request<Booking>(`/owner/bookings/${bookingId}/check-out`, { method: 'POST' }),
+
   earnings: (from: string, to: string) =>
     request<EarningsSummary>(`/owner/earnings/summary?${queryString({ from, to })}`),
 }
@@ -187,4 +207,254 @@ export async function putToStorage(uploadUrl: string, file: File): Promise<void>
   if (!response.ok) {
     throw new Error(`Upload failed with status ${response.status}`)
   }
+}
+
+// --- Step 3: hotels ---------------------------------------------------------
+
+export const hotels = {
+  list: (query: { status?: SupplyStatus; page: number; size: number }) =>
+    request<Page<Hotel>>(`/hotel/hotels?${queryString({ ...query })}`),
+
+  get: (hotelId: string) => request<Hotel>(`/hotel/hotels/${hotelId}`),
+
+  create: (body: { name: string; city: string; organizationId?: string }) =>
+    request<Hotel>('/hotel/hotels', { method: 'POST', body }),
+
+  update: (hotelId: string, patch: Record<string, unknown>) =>
+    request<Hotel>(`/hotel/hotels/${hotelId}`, { method: 'PATCH', body: patch }),
+
+  submit: (hotelId: string) =>
+    request<Hotel>(`/hotel/hotels/${hotelId}/submit`, { method: 'POST' }),
+
+  pause: (hotelId: string) =>
+    request<Hotel>(`/hotel/hotels/${hotelId}/pause`, { method: 'POST' }),
+
+  resume: (hotelId: string) =>
+    request<Hotel>(`/hotel/hotels/${hotelId}/resume`, { method: 'POST' }),
+
+  photoUploadUrl: (hotelId: string, body: { contentType: string; sizeBytes: number }) =>
+    request<{ uploadUrl: string; storageKey: string; expiresAt: string }>(
+      `/hotel/hotels/${hotelId}/photos/upload-url`, { method: 'POST', body }),
+
+  confirmPhoto: (hotelId: string, body: { storageKey: string; altText?: string }) =>
+    request<Photo>(`/hotel/hotels/${hotelId}/photos`, { method: 'POST', body }),
+
+  deletePhoto: (hotelId: string, photoId: string) =>
+    request<void>(`/hotel/hotels/${hotelId}/photos/${photoId}`, { method: 'DELETE' }),
+
+  reorderPhotos: (hotelId: string, body: { photoIdsInOrder: string[]; coverPhotoId?: string }) =>
+    request<Photo[]>(`/hotel/hotels/${hotelId}/photos/order`, { method: 'PATCH', body }),
+
+  // --- room types ---
+
+  listRoomTypes: (hotelId: string) =>
+    request<RoomType[]>(`/hotel/hotels/${hotelId}/room-types`),
+
+  createRoomType: (hotelId: string, body: {
+    name: string; capacity: number; totalRooms: number; basePrice: number
+  }) => request<RoomType>(`/hotel/hotels/${hotelId}/room-types`, { method: 'POST', body }),
+
+  updateRoomType: (roomTypeId: string, patch: Record<string, unknown>) =>
+    request<RoomType>(`/hotel/room-types/${roomTypeId}`, { method: 'PATCH', body: patch }),
+
+  deleteRoomType: (roomTypeId: string) =>
+    request<void>(`/hotel/room-types/${roomTypeId}`, { method: 'DELETE' }),
+
+  roomTypePhotoUploadUrl: (roomTypeId: string, body: {
+    contentType: string; sizeBytes: number
+  }) => request<{ uploadUrl: string; storageKey: string; expiresAt: string }>(
+    `/hotel/room-types/${roomTypeId}/photos/upload-url`, { method: 'POST', body }),
+
+  confirmRoomTypePhoto: (roomTypeId: string, body: { storageKey: string; altText?: string }) =>
+    request<Photo>(`/hotel/room-types/${roomTypeId}/photos`, { method: 'POST', body }),
+
+  deleteRoomTypePhoto: (roomTypeId: string, photoId: string) =>
+    request<void>(`/hotel/room-types/${roomTypeId}/photos/${photoId}`, { method: 'DELETE' }),
+
+  // --- inventory ---
+
+  inventory: (hotelId: string, from: string, to: string) =>
+    request<RoomTypeInventory[]>(
+      `/hotel/hotels/${hotelId}/inventory?${queryString({ from, to })}`),
+
+  /** Bulk edit across a range. `availableCount` cannot go below the rooms sold. */
+  updateInventory: (roomTypeId: string, body: {
+    from: string; to: string; weekdays?: string[]; availableCount?: number
+    rate?: number; clearRate?: boolean; stopSell?: boolean
+    minStayNights?: number; clearMinStay?: boolean
+  }) => request<{ nightsUpdated: number }>(`/hotel/room-types/${roomTypeId}/inventory`,
+    { method: 'PUT', body }),
+
+  clearInventory: (roomTypeId: string, from: string, to: string) =>
+    request<{ nightsCleared: number }>(
+      `/hotel/room-types/${roomTypeId}/inventory?${queryString({ from, to })}`,
+      { method: 'DELETE' }),
+
+  // --- front desk ---
+
+  reservations: (query: { hotelId: string; scope?: string; page: number; size: number }) =>
+    request<Page<Booking>>(`/hotel/bookings?${queryString({ ...query })}`),
+
+  checkIn: (bookingId: string) =>
+    request<Booking>(`/hotel/bookings/${bookingId}/check-in`, { method: 'POST' }),
+
+  checkOut: (bookingId: string) =>
+    request<Booking>(`/hotel/bookings/${bookingId}/check-out`, { method: 'POST' }),
+
+  cancelReservation: (bookingId: string, reason?: string) =>
+    request<Booking>(`/hotel/bookings/${bookingId}/cancel`, { method: 'POST', body: { reason } }),
+
+  occupancy: (hotelId: string, from: string, to: string) =>
+    request<OccupancyReport>(`/hotel/reports/occupancy?${queryString({ hotelId, from, to })}`),
+
+  // --- staff ---
+
+  listStaff: (hotelId: string) => request<StaffMember[]>(`/hotel/hotels/${hotelId}/staff`),
+
+  addStaff: (hotelId: string, phone: string) =>
+    request<StaffMember>(`/hotel/hotels/${hotelId}/staff`, { method: 'POST', body: { phone } }),
+
+  removeStaff: (hotelId: string, userId: string) =>
+    request<void>(`/hotel/hotels/${hotelId}/staff/${userId}`, { method: 'DELETE' }),
+}
+
+export const adminHotels = {
+  list: (query: { status?: SupplyStatus; page: number; size: number }) =>
+    request<Page<Hotel>>(`/admin/hotels?${queryString({ ...query })}`),
+
+  setStatus: (hotelId: string, status: SupplyStatus, reason?: string) =>
+    request<Hotel>(`/admin/hotels/${hotelId}/status`,
+      { method: 'PATCH', body: { status, reason } }),
+
+  hostApplications: (query: { status?: string; page: number; size: number }) =>
+    request<Page<HostApplication>>(`/admin/host-applications?${queryString({ ...query })}`),
+
+  approveApplication: (applicationId: string, note?: string) =>
+    request<HostApplication>(`/admin/host-applications/${applicationId}/approve`,
+      { method: 'POST', body: { note } }),
+
+  rejectApplication: (applicationId: string, note: string) =>
+    request<HostApplication>(`/admin/host-applications/${applicationId}/reject`,
+      { method: 'POST', body: { note } }),
+}
+
+/** Trust and safety: held money, flagged listings, identity documents. */
+export const trust = {
+  /** Runs the release sweep now, applying the same rules the nightly job does. */
+  releaseDue: () =>
+    request<{ released: number }>('/admin/payouts/release-due', { method: 'POST' }),
+
+  payouts: (query: { status?: string[]; page: number; size: number }) =>
+    request<Page<Payout>>(`/admin/payouts?${queryString({ ...query })}`),
+
+  releasePayout: (payoutId: string, note?: string) =>
+    request<Payout>(`/admin/payouts/${payoutId}/release`, { method: 'POST', body: { note } }),
+
+  holdPayout: (payoutId: string, reason: string) =>
+    request<Payout>(`/admin/payouts/${payoutId}/hold`, { method: 'POST', body: { reason } }),
+
+  markPaid: (payoutId: string, providerRef: string, note?: string) =>
+    request<Payout>(`/admin/payouts/${payoutId}/mark-paid`,
+      { method: 'POST', body: { providerRef, note } }),
+
+  flags: (query: { status?: string[]; page: number; size: number }) =>
+    request<Page<ListingFlag>>(`/admin/flags?${queryString({ ...query })}`),
+
+  dismissFlag: (flagId: string, note?: string) =>
+    request<ListingFlag>(`/admin/flags/${flagId}/dismiss`, { method: 'POST', body: { note } }),
+
+  upholdFlag: (flagId: string, note?: string) =>
+    request<ListingFlag>(`/admin/flags/${flagId}/uphold`, { method: 'POST', body: { note } }),
+
+  kyc: (query: { status?: string[]; page: number; size: number }) =>
+    request<Page<KycSubmission>>(`/admin/kyc?${queryString({ ...query })}`),
+
+  reviewKyc: (submissionId: string, outcome: 'VERIFIED' | 'REJECTED', note?: string) =>
+    request<KycSubmission>(`/admin/kyc/${submissionId}/review`,
+      { method: 'POST', body: { outcome, note } }),
+}
+
+/** A host's own payouts. */
+export const hostPayouts = {
+  mine: (query: { page: number; size: number }) =>
+    request<Page<Payout>>(`/owner/payouts?${queryString({ ...query })}`),
+
+  forHotel: (hotelId: string, query: { page: number; size: number }) =>
+    request<Page<Payout>>(`/hotel/payouts?${queryString({ hotelId, ...query })}`),
+}
+
+/** Payment oversight and the platform's own numbers. */
+export const adminPayments = {
+  search: (query: {
+    status?: string; provider?: string; intent?: string
+    from?: string; to?: string; query?: string; page: number; size: number
+  }) => request<Page<AdminPayment>>(`/admin/payments?${queryString({ ...query })}`),
+
+  detail: (paymentId: string) =>
+    request<PaymentDetail>(`/admin/payments/${paymentId}`),
+
+  refund: (paymentId: string, amount: number, reason: string) =>
+    request<unknown>(`/admin/payments/${paymentId}/refund`,
+      { method: 'POST', body: { amount, reason } }),
+}
+
+export const analytics = {
+  overview: (from: string, to: string) =>
+    request<AnalyticsOverview>(`/admin/analytics/overview?${queryString({ from, to })}`),
+
+  series: (from: string, to: string, interval: 'day' | 'week' = 'day') =>
+    request<AnalyticsPoint[]>(`/admin/analytics/series?${queryString({ from, to, interval })}`),
+}
+
+/** Reviews and flagged messages: the two things a moderator works through. */
+export const moderation = {
+  reviews: (status: string[] | undefined, page: number, size = 25) =>
+    request<Page<ModeratedReview>>(
+      `/admin/reviews?${queryString({ status, page, size })}`),
+
+  hideReview: (reviewId: string, reason: string) =>
+    request<ModeratedReview>(`/admin/reviews/${reviewId}/hide`,
+      { method: 'POST', body: { reason } }),
+
+  restoreReview: (reviewId: string) =>
+    request<ModeratedReview>(`/admin/reviews/${reviewId}/restore`, { method: 'POST' }),
+
+  flaggedMessages: (page: number, size = 25) =>
+    request<Page<FlaggedMessage>>(`/admin/messages/flagged?${queryString({ page, size })}`),
+}
+
+/** Turning released payouts into one bank file at a time. */
+export const payoutBatches = {
+  list: (page: number, size = 25) =>
+    request<Page<PayoutBatch>>(`/admin/payout-batches?${queryString({ page, size })}`),
+
+  assemble: () => request<PayoutBatch>('/admin/payout-batches', { method: 'POST' }),
+
+  lines: (batchId: string) =>
+    request<TransferLine[]>(`/admin/payout-batches/${batchId}/lines`),
+
+  markExported: (batchId: string) =>
+    request<PayoutBatch>(`/admin/payout-batches/${batchId}/exported`, { method: 'POST' }),
+
+  settle: (batchId: string, providerRef: string) =>
+    request<PayoutBatch>(`/admin/payout-batches/${batchId}/settled`,
+      { method: 'POST', body: { providerRef } }),
+}
+
+/** One thread per booking, the same endpoints the guest app uses. */
+export const conversations = {
+  inbox: () => request<Page<Conversation>>('/conversations?size=50'),
+
+  openForBooking: (bookingId: string) =>
+    request<Conversation>(`/conversations/for-booking/${bookingId}`, { method: 'POST' }),
+
+  messages: (conversationId: string) =>
+    request<Page<Message>>(`/conversations/${conversationId}/messages?size=100`),
+
+  send: (conversationId: string, body: string) =>
+    request<Message>(`/conversations/${conversationId}/messages`,
+      { method: 'POST', body: { body } }),
+
+  markRead: (conversationId: string) =>
+    request<void>(`/conversations/${conversationId}/read`, { method: 'POST' }),
 }

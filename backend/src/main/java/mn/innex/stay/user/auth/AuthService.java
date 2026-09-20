@@ -79,8 +79,8 @@ public class AuthService {
             throw ApiException.forbidden("account_not_active", "This account cannot sign in");
         }
 
-        Duration cooldown = otpService.issue(phone, OtpPurpose.LOGIN);
-        return new OtpChallengeResponse("A verification code has been sent.", cooldown.toSeconds());
+        var issued = otpService.issue(phone, OtpPurpose.LOGIN);
+        return OtpChallengeResponse.sent(issued.resendAfter().toSeconds(), issued.devCode());
     }
 
     /** Exchanges a login code for a session, activating the account on first use. */
@@ -138,9 +138,10 @@ public class AuthService {
         auditService.record(user.getId(), AuditAction.USER_REGISTERED, "User", user.getId(),
                 Map.of("via", "email", "phone", PhoneNumbers.mask(phone)), ip);
 
-        Duration cooldown = otpService.issue(phone, OtpPurpose.LOGIN);
+        var issued = otpService.issue(phone, OtpPurpose.LOGIN);
         return new OtpChallengeResponse(
-                "Account created. A verification code has been sent to your phone.", cooldown.toSeconds());
+                "Account created. A verification code has been sent to your phone.",
+                issued.resendAfter().toSeconds(), issued.devCode());
     }
 
     @Transactional
@@ -201,13 +202,17 @@ public class AuthService {
         Optional<User> user = userRepository.findByPhone(phone);
 
         long cooldownSeconds = 60;
+        String devCode = null;
         if (user.isPresent() && user.get().getStatus().canAuthenticate()) {
-            cooldownSeconds = otpService.issue(phone, OtpPurpose.PASSWORD_RESET).toSeconds();
+            var issued = otpService.issue(phone, OtpPurpose.PASSWORD_RESET);
+            cooldownSeconds = issued.resendAfter().toSeconds();
+            devCode = issued.devCode();
         } else {
             log.debug("Password reset requested for unusable phone {}", PhoneNumbers.mask(phone));
         }
         return new OtpChallengeResponse(
-                "If an account exists for this number, a reset code has been sent.", cooldownSeconds);
+                "If an account exists for this number, a reset code has been sent.",
+                cooldownSeconds, devCode);
     }
 
     /** Sets a new password and signs every device out, since the old one may be known. */

@@ -47,19 +47,30 @@ public class GuestBookingController {
     /**
      * Requests or instantly books a stay.
      *
-     * <p>The response's {@code status} says which happened: {@code PENDING_PAYMENT}
-     * for an instant-book listing, {@code PENDING_HOST_APPROVAL} when the host
-     * vets requests. Either way the dates are held, with {@code expiresAt} as the
-     * deadline.
+     * <p>Send {@code propertyId} for a whole place or {@code roomTypeId} (with
+     * {@code rooms}) for a hotel. The response's {@code status} says what happened:
+     * {@code PENDING_PAYMENT} for an instant-book listing or any hotel, and
+     * {@code PENDING_HOST_APPROVAL} when the host vets requests. Either way the
+     * dates are held, with {@code expiresAt} as the deadline.
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public BookingResponse create(@Valid @RequestBody BookingCreateRequest request,
                                   HttpServletRequest httpRequest) {
-        return BookingResponse.forGuest(bookingService.create(
-                CurrentActor.requireUserId(), request.propertyId(), request.checkIn(),
-                request.checkOut(), request.guests(), request.message(),
-                ClientIp.of(httpRequest)), storage);
+        if (!request.namesExactlyOneSupply()) {
+            throw mn.innex.stay.common.ApiException.badRequest("supply_reference_required",
+                    "Provide exactly one of propertyId or roomTypeId");
+        }
+        UUID guestId = CurrentActor.requireUserId();
+        String ip = ClientIp.of(httpRequest);
+
+        var booking = request.isHotelStay()
+                ? bookingService.createHotelBooking(guestId, request.roomTypeId(),
+                        request.checkIn(), request.checkOut(), request.guests(),
+                        request.roomsOrOne(), request.message(), ip)
+                : bookingService.create(guestId, request.propertyId(), request.checkIn(),
+                        request.checkOut(), request.guests(), request.message(), ip);
+        return BookingResponse.forGuest(booking, storage);
     }
 
     /** @param scope all, upcoming, past, cancelled or pending */

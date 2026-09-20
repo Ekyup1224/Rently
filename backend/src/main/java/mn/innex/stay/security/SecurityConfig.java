@@ -78,11 +78,20 @@ public class SecurityConfig {
                         // account; only committing to a booking needs one.
                         .requestMatchers(HttpMethod.GET, "/api/v1/listings/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/listings/*/quote").permitAll()
+                        // Hotel pages and their room availability are part of the
+                        // same browsable catalogue.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/hotels/**").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/hotels/*/room-types/*/quote").permitAll()
                         // Provider callbacks cannot carry a user session; they are
                         // authenticated by signature inside the payment gateway.
                         .requestMatchers(HttpMethod.POST, "/api/v1/payments/callbacks/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("SUPER_ADMIN")
                         .requestMatchers("/api/v1/owner/**").hasRole("HOUSE_OWNER")
+                        // Which of the two hotel roles may do what is decided by
+                        // HotelAccessService, not by URL.
+                        .requestMatchers("/api/v1/hotel/**")
+                                .hasAnyRole("HOTEL_MANAGER", "HOTEL_STAFF")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))

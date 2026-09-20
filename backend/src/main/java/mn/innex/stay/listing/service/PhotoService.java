@@ -8,6 +8,9 @@ import java.util.UUID;
 import mn.innex.stay.common.ApiException;
 import mn.innex.stay.common.audit.AuditAction;
 import mn.innex.stay.common.audit.AuditService;
+import mn.innex.stay.common.supply.PhotoReviewPort;
+import mn.innex.stay.common.supply.PhotoUploadSupport;
+import mn.innex.stay.common.supply.SupplyKind;
 import mn.innex.stay.listing.domain.Property;
 import mn.innex.stay.listing.domain.PropertyPhoto;
 import mn.innex.stay.listing.repo.PropertyPhotoRepository;
@@ -20,6 +23,7 @@ import mn.innex.stay.listing.web.dto.PhotoUploadUrlRequest;
 import mn.innex.stay.listing.web.dto.PhotoUploadUrlResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,63 +46,40 @@ public class PhotoService {
     /** Enough for a generous gallery; beyond this a listing page is unusable anyway. */
     private static final int MAX_PHOTOS_PER_LISTING = 30;
 
-    private static final Map<String, String> EXTENSIONS = Map.of(
-            "image/jpeg", "jpg",
-            "image/png", "png",
-            "image/webp", "webp");
-
     private final PropertyService propertyService;
     private final PropertyRepository propertyRepository;
     private final PropertyPhotoRepository photoRepository;
     private final ObjectStorage storage;
-    private final S3Properties storageProperties;
+    private final PhotoUploadSupport uploads;
     private final AuditService auditService;
+    private final ObjectProvider<PhotoReviewPort> photoReview;
 
     public PhotoService(PropertyService propertyService, PropertyRepository propertyRepository,
                         PropertyPhotoRepository photoRepository, ObjectStorage storage,
-                        S3Properties storageProperties, AuditService auditService) {
+                        PhotoUploadSupport uploads, AuditService auditService,
+                        ObjectProvider<PhotoReviewPort> photoReview) {
         this.propertyService = propertyService;
         this.propertyRepository = propertyRepository;
         this.photoRepository = photoRepository;
         this.storage = storage;
-        this.storageProperties = storageProperties;
+        this.uploads = uploads;
         this.auditService = auditService;
+        this.photoReview = photoReview;
     }
 
     /**
-     * Issues a short-lived upload URL.
-     *
-     * <p>The declared size is checked here so an oversized file is refused before
-     * it is transferred, and again on confirmation against what storage really
-     * received — the declaration is a courtesy, not a control.
+     * Issues a short-lived upload URL, sharing the limits and key layout with
+     * every other gallery on the platform.
      */
     @Transactional(readOnly = true)
     public PhotoUploadUrlResponse presignUpload(UUID ownerId, UUID propertyId,
                                                 PhotoUploadUrlRequest request) {
         propertyService.requireOwned(ownerId, propertyId);
-
-        if (request.sizeBytes() > storageProperties.maxPhotoBytes()) {
-            throw ApiException.badRequest("photo_too_large",
-                    "Photos must be " + (storageProperties.maxPhotoBytes() / 1_048_576)
-                            + " MB or smaller");
-        }
-        if (photoRepository.countByPropertyId(propertyId) >= MAX_PHOTOS_PER_LISTING) {
-            throw ApiException.conflict("photo_limit_reached",
-                    "A listing can have at most " + MAX_PHOTOS_PER_LISTING + " photos");
-        }
-
-        String extension = EXTENSIONS.get(request.contentType());
-        if (extension == null) {
-            throw ApiException.badRequest("unsupported_image_type",
-                    "Supported image types: " + EXTENSIONS.keySet());
-        }
-
-        String key = "%s%s/%s.%s".formatted(
-                S3Properties.PHOTO_PREFIX, propertyId, UUID.randomUUID(), extension);
-        ObjectStorage.PresignedUpload upload =
-                storage.presignUpload(key, request.contentType(), storageProperties.presignTtl());
-
-        return new PhotoUploadUrlResponse(upload.url(), upload.key(), upload.expiresAt());
+        PhotoUploadSupport.PresignedUpload upload = uploads.presign(
+                S3Properties.PHOTO_PREFIX, propertyId, request.contentType(), request.sizeBytes(),
+                photoRepository.countByPropertyId(propertyId), MAX_PHOTOS_PER_LISTING);
+        return new PhotoUploadUrlResponse(upload.uploadUrl(), upload.storageKey(),
+                upload.expiresAt());
     }
 
     /**
@@ -113,41 +94,33 @@ public class PhotoService {
         Property property = propertyService.requireOwned(ownerId, propertyId);
         String key = request.storageKey();
 
-        // Without this, an owner could confirm an object belonging to another
-        // listing simply by knowing its key.
-        String expectedPrefix = S3Properties.PHOTO_PREFIX + propertyId + "/";
-        if (!key.startsWith(expectedPrefix)) {
-            throw ApiException.badRequest("storage_key_mismatch",
-                    "That storage key does not belong to this listing");
-        }
         if (photoRepository.findByStorageKey(key).isPresent()) {
             throw ApiException.conflict("photo_already_registered",
                     "That upload has already been registered");
         }
 
-        ObjectStorage.StoredObject stored = storage.describe(key).orElseThrow(
-                () -> ApiException.badRequest("upload_not_found",
-                        "No uploaded file was found at that key. Upload it before confirming."));
-
-        if (stored.sizeBytes() > storageProperties.maxPhotoBytes()) {
-            // The declared size was under the cap but the real file is not; remove
-            // it rather than leaving an orphan in the bucket.
-            storage.delete(key);
-            throw ApiException.badRequest("photo_too_large",
-                    "The uploaded file exceeds the size limit and has been discarded");
-        }
-        if (stored.contentType() != null && !EXTENSIONS.containsKey(stored.contentType())) {
-            storage.delete(key);
-            throw ApiException.badRequest("unsupported_image_type",
-                    "The uploaded file is not a supported image type");
-        }
+        // Verifies the object exists, is an image, is within the size limit, and
+        // sits under this listing's own prefix -- without which an owner could
+        // register another listing's object simply by knowing its key.
+        ObjectStorage.StoredObject stored =
+                uploads.verifyUploaded(S3Properties.PHOTO_PREFIX, propertyId, key);
 
         int nextSortOrder = (int) photoRepository.countByPropertyId(propertyId);
         PropertyPhoto photo = new PropertyPhoto(property, key,
                 stored.contentType() == null ? "image/jpeg" : stored.contentType(),
                 stored.sizeBytes(), request.altText(), nextSortOrder);
         property.addPhoto(photo);
-        propertyRepository.save(property);
+        // Saved directly: cascading from the property assigns the generated id at
+        // flush time, and to a merged copy, leaving this instance's id null in the
+        // response the owner's gallery needs for reordering and deletion.
+        photoRepository.saveAndFlush(photo);
+
+        // Fingerprinted after the row exists, so a match can point at a real photo.
+        PhotoReviewPort review = photoReview.getIfAvailable();
+        if (review != null) {
+            review.photoPublished(photo.getId(), SupplyKind.PROPERTY, propertyId,
+                    property.getOwner().getId(), key);
+        }
 
         auditService.record(ownerId, AuditAction.PROPERTY_PHOTO_ADDED, "Property", propertyId,
                 Map.of("storageKey", key, "sizeBytes", stored.sizeBytes()), ip);

@@ -6,14 +6,16 @@ import java.util.List;
 import java.util.UUID;
 
 import mn.innex.stay.booking.service.Quote;
-import mn.innex.stay.listing.domain.CancellationPolicy;
+import mn.innex.stay.common.supply.CancellationPolicy;
 
 /**
  * What a stay would cost, itemized. Shown before booking so the total is never a
  * surprise, and recomputed server-side at booking time from the same code.
  */
 public record QuoteResponse(
-        UUID propertyId,
+        String supplyType,
+        UUID supplyId,
+        int rooms,
         LocalDate checkIn,
         LocalDate checkOut,
         int nights,
@@ -42,7 +44,8 @@ public record QuoteResponse(
      */
     public static QuoteResponse from(Quote quote) {
         return new QuoteResponse(
-                quote.propertyId(), quote.checkIn(), quote.checkOut(), quote.nights(),
+                quote.supplyType().name(), quote.supplyId(), quote.rooms(),
+                quote.checkIn(), quote.checkOut(), quote.nights(),
                 quote.guests(), quote.currency(),
                 quote.nightlyRates().stream()
                         .map(rate -> new NightlyRateResponse(rate.date(), rate.amount(),

@@ -10,6 +10,7 @@ import mn.innex.stay.booking.service.BookingService;
 import mn.innex.stay.common.PlatformTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,10 +44,56 @@ public class BookingLifecycleJob {
 
     private final BookingRepository bookingRepository;
     private final BookingService bookingService;
+    private final ObjectProvider<PayoutReleasePort> payoutRelease;
+    private final ObjectProvider<mn.innex.stay.review.service.ReviewPublishPort> reviewPublisher;
 
-    public BookingLifecycleJob(BookingRepository bookingRepository, BookingService bookingService) {
+    public BookingLifecycleJob(BookingRepository bookingRepository, BookingService bookingService,
+                               ObjectProvider<PayoutReleasePort> payoutRelease,
+                               ObjectProvider<mn.innex.stay.review.service.ReviewPublishPort>
+                                       reviewPublisher) {
         this.bookingRepository = bookingRepository;
         this.bookingService = bookingService;
+        this.payoutRelease = payoutRelease;
+        this.reviewPublisher = reviewPublisher;
+    }
+
+    /**
+     * Publishes reviews whose blind period expired with nothing written back.
+     *
+     * <p>Nightly, because a review appearing a few hours late costs nothing and
+     * one appearing early costs the whole reason for writing blind.
+     */
+    @Scheduled(cron = "0 30 3 * * *", zone = "Asia/Ulaanbaatar")
+    public void publishExpiredReviews() {
+        var port = reviewPublisher.getIfAvailable();
+        if (port == null) {
+            return;
+        }
+        try {
+            port.publishExpired();
+        } catch (RuntimeException ex) {
+            log.error("Review publication sweep failed", ex);
+        }
+    }
+
+    /**
+     * Lets go of host money whose hold has expired, provided the stay actually
+     * started and nothing is flagged against the listing.
+     *
+     * <p>Hourly. A payout arriving up to an hour late costs a host very little; a
+     * payout arriving before anyone has checked in is the entire fraud.
+     */
+    @Scheduled(cron = "0 5 * * * *", zone = "Asia/Ulaanbaatar")
+    public void releaseDuePayouts() {
+        PayoutReleasePort port = payoutRelease.getIfAvailable();
+        if (port == null) {
+            return;
+        }
+        try {
+            port.releaseDue();
+        } catch (RuntimeException ex) {
+            log.error("Payout release sweep failed", ex);
+        }
     }
 
     /**

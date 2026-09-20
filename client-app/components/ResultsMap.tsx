@@ -65,7 +65,8 @@ export function ResultsMap({ listings }: { listings: ListingSummary[] }) {
       label.textContent = formatMoney(listing.nightlyFrom, listing.currency)
       label.style.cssText = 'background:#fff;border:1px solid #d0d3d9;border-radius:999px;'
         + 'padding:4px 10px;font:600 12px system-ui;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.2)'
-      label.onclick = () => router.push(`/listings/${listing.id}`)
+      label.onclick = () => router.push(
+        `${listing.supplyType === 'HOTEL' ? '/hotels' : '/listings'}/${listing.id}`)
 
       return new Marker({ element: label })
         .setLngLat([listing.longitude!, listing.latitude!])

@@ -15,6 +15,8 @@ import mn.innex.stay.common.ApiException;
 import mn.innex.stay.common.Money;
 import mn.innex.stay.common.audit.AuditAction;
 import mn.innex.stay.common.audit.AuditService;
+import mn.innex.stay.hotel.domain.RoomType;
+import mn.innex.stay.hotel.service.RoomTypeService;
 import mn.innex.stay.listing.domain.Property;
 import mn.innex.stay.listing.repo.PropertyRepository;
 import mn.innex.stay.user.domain.User;
@@ -46,11 +48,15 @@ public class BookingService {
 
     /** Name of the exclusion constraint in V4; used to recognize a lost date race. */
     private static final String OVERLAP_CONSTRAINT = "bookings_no_property_overlap";
+    /** The CHECK in V5 that makes a hotel oversell impossible. */
+    private static final String OVERSOLD_CONSTRAINT = "ck_room_inventory_not_oversold";
 
     private final BookingRepository bookingRepository;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
     private final PricingService pricingService;
+    private final HotelPricingService hotelPricingService;
+    private final RoomTypeService roomTypeService;
     private final BookingReferenceGenerator referenceGenerator;
     private final RefundCalculator refundCalculator;
     private final BookingProperties bookingProperties;
@@ -66,6 +72,7 @@ public class BookingService {
      * reconciliation job to catch.
      */
     private final ObjectProvider<RefundPort> refundPort;
+    private final ObjectProvider<PayoutPort> payoutPort;
     /**
      * Booking creation runs in an explicit transaction rather than a declarative
      * one, so a lock failure can be retried in a *new* transaction — a retry
@@ -77,28 +84,193 @@ public class BookingService {
                           PropertyRepository propertyRepository,
                           UserRepository userRepository,
                           PricingService pricingService,
+                          HotelPricingService hotelPricingService,
+                          RoomTypeService roomTypeService,
                           BookingReferenceGenerator referenceGenerator,
                           RefundCalculator refundCalculator,
                           BookingProperties bookingProperties,
                           AuditService auditService,
                           ObjectProvider<RefundPort> refundPort,
+                          ObjectProvider<PayoutPort> payoutPort,
                           PlatformTransactionManager transactionManager) {
         this.bookingRepository = bookingRepository;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.pricingService = pricingService;
+        this.hotelPricingService = hotelPricingService;
+        this.roomTypeService = roomTypeService;
         this.referenceGenerator = referenceGenerator;
         this.refundCalculator = refundCalculator;
         this.bookingProperties = bookingProperties;
         this.auditService = auditService;
         this.refundPort = refundPort;
+        this.payoutPort = payoutPort;
         this.bookingTransaction = new TransactionTemplate(transactionManager);
+    }
+
+    /**
+     * Loads the photo collections a response card needs, while the session is open.
+     *
+     * <p>A booking can reach three collections — a property's photos, a room
+     * type's photos and its hotel's photos — and Hibernate fetches at most one per
+     * query. {@code @BatchSize} makes these a couple of extra round trips, and
+     * doing it here means a controller can map the entity after the transaction
+     * closes without tripping a lazy-load.
+     */
+    private Booking initialize(Booking booking) {
+        if (booking.getProperty() != null) {
+            booking.getProperty().getPhotos().size();
+        }
+        if (booking.getRoomType() != null) {
+            booking.getRoomType().getPhotos().size();
+            booking.getRoomType().getHotel().getPhotos().size();
+        }
+        // The counterparty's name appears on the card.
+        if (booking.getHost() != null) {
+            booking.getHost().getFullName();
+        }
+        if (booking.getGuest() != null) {
+            booking.getGuest().getFullName();
+        }
+        return booking;
+    }
+
+    /** Reservations at one hotel, for the front desk. */
+    @Transactional(readOnly = true)
+    public Page<Booking> listForHotel(UUID hotelId, List<BookingStatus> statuses,
+                                      Pageable pageable) {
+        Page<Booking> page = bookingRepository.findByHotel(hotelId, statuses, pageable);
+        page.forEach(this::initialize);
+        return page;
     }
 
     /** Prices a stay without creating anything. Backs {@code POST /listings/{id}/quote}. */
     @Transactional(readOnly = true)
     public Quote quote(UUID propertyId, LocalDate checkIn, LocalDate checkOut, int guests) {
         return pricingService.quote(requireProperty(propertyId), checkIn, checkOut, guests);
+    }
+
+    /** Prices a hotel stay without creating anything. */
+    @Transactional(readOnly = true)
+    public Quote quoteHotelStay(UUID roomTypeId, LocalDate checkIn, LocalDate checkOut,
+                                int guests, int rooms) {
+        return hotelPricingService.quote(
+                roomTypeService.requireSellable(roomTypeId), checkIn, checkOut, guests, rooms);
+    }
+
+    /**
+     * Reserves rooms at a hotel.
+     *
+     * <p>Hotels are instant-book: there is no host to vet the guest, so the
+     * reservation goes straight to {@code PENDING_PAYMENT} with the rooms held
+     * until the payment window closes.
+     *
+     * <p>The availability check inside pricing is advisory. What actually prevents
+     * an oversell is the CHECK on the inventory row, whose count a database trigger
+     * maintains — so two guests taking the last room at the same instant end with
+     * one reservation and one clean 409, not two reservations.
+     *
+     * @throws ApiException 409 {@code rooms_unavailable} when the rooms went while
+     *                      this request was in flight
+     */
+    public Booking createHotelBooking(UUID guestId, UUID roomTypeId, LocalDate checkIn,
+                                      LocalDate checkOut, int guests, int rooms,
+                                      String guestMessage, String ip) {
+        // Same retry as houses: contention on the inventory rows can surface as a
+        // deadlock rather than a constraint violation, and a retry in a fresh
+        // transaction tells the two apart.
+        try {
+            return bookingTransaction.execute(status -> doCreateHotelBooking(
+                    guestId, roomTypeId, checkIn, checkOut, guests, rooms, guestMessage, ip));
+        } catch (PessimisticLockingFailureException ex) {
+            log.info("Lock contention booking room type {} for {}..{}; retrying once",
+                    roomTypeId, checkIn, checkOut);
+            try {
+                return bookingTransaction.execute(status -> doCreateHotelBooking(
+                        guestId, roomTypeId, checkIn, checkOut, guests, rooms, guestMessage, ip));
+            } catch (PessimisticLockingFailureException retryFailed) {
+                log.warn("Booking room type {} for {}..{} lost to contention twice",
+                        roomTypeId, checkIn, checkOut, retryFailed);
+                throw ApiException.conflict("rooms_unavailable",
+                        "Those rooms have just been taken. Please try different dates.");
+            }
+        }
+    }
+
+    private Booking doCreateHotelBooking(UUID guestId, UUID roomTypeId, LocalDate checkIn,
+                                         LocalDate checkOut, int guests, int rooms,
+                                         String guestMessage, String ip) {
+        RoomType roomType = roomTypeService.requireSellable(roomTypeId);
+        User guest = userRepository.findByIdWithRoles(guestId)
+                .orElseThrow(() -> ApiException.unauthorized("unauthenticated",
+                        "Authentication is required"));
+
+        Quote quote = hotelPricingService.quote(roomType, checkIn, checkOut, guests, rooms);
+
+        Booking booking = Booking.forHotel(referenceGenerator.next(), roomType, guest,
+                checkIn, checkOut, guests, rooms, BookingStatus.PENDING_PAYMENT, guestMessage);
+        booking.applyPricing(quote.nightlySubtotal(), quote.cleaningFee(), quote.guestServiceFee(),
+                quote.tax(), quote.total(), quote.hostCommission(), quote.hostPayout(),
+                quote.commissionRuleId());
+        booking.setExpiresAt(Instant.now().plus(bookingProperties.paymentHold()));
+
+        try {
+            bookingRepository.saveAndFlush(booking);
+        } catch (DataIntegrityViolationException ex) {
+            if (isOversoldViolation(ex)) {
+                log.info("Lost a room race on room type {} for {}..{}",
+                        roomTypeId, checkIn, checkOut);
+                throw ApiException.conflict("rooms_unavailable",
+                        "Those rooms have just been taken. Please pick different dates.");
+            }
+            throw ex;
+        }
+
+        auditService.record(guestId, AuditAction.BOOKING_CREATED, "Booking", booking.getId(),
+                Map.of("reference", booking.getReference(),
+                        "roomTypeId", roomTypeId.toString(),
+                        "hotelId", roomType.getHotel().getId().toString(),
+                        "rooms", rooms,
+                        "nights", booking.nightCount(),
+                        "total", booking.getTotal().toPlainString()), ip);
+
+        // Reloaded through the full graph before the transaction closes. The host
+        // was assigned from the organization's owner, which is a lazy proxy that
+        // the response would otherwise try to initialize with no session open.
+        return requireBooking(booking.getId());
+    }
+
+    /**
+     * Front-desk arrival for a hotel stay.
+     *
+     * @throws ApiException 409 unless the reservation is confirmed
+     */
+    @Transactional
+    public Booking checkIn(UUID actorId, UUID bookingId, String ip) {
+        Booking booking = requireBooking(bookingId);
+        if (booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw ApiException.conflict("booking_not_confirmed",
+                    "Only a confirmed reservation can be checked in");
+        }
+        booking.checkIn();
+        bookingRepository.save(booking);
+        auditService.record(actorId, AuditAction.BOOKING_CHECKED_IN, "Booking", bookingId,
+                Map.of("reference", booking.getReference()), ip);
+        return booking;
+    }
+
+    @Transactional
+    public Booking checkOut(UUID actorId, UUID bookingId, String ip) {
+        Booking booking = requireBooking(bookingId);
+        if (booking.getStatus() != BookingStatus.CHECKED_IN) {
+            throw ApiException.conflict("booking_not_checked_in",
+                    "Only a checked-in reservation can be checked out");
+        }
+        booking.checkOut();
+        bookingRepository.save(booking);
+        auditService.record(actorId, AuditAction.BOOKING_CHECKED_OUT, "Booking", bookingId,
+                Map.of("reference", booking.getReference()), ip);
+        return booking;
     }
 
     /**
@@ -187,6 +359,12 @@ public class BookingService {
         return booking;
     }
 
+    /** Any booking, fully loaded. Callers do their own authorization. */
+    @Transactional(readOnly = true)
+    public Booking requireAnyBooking(UUID bookingId) {
+        return requireBooking(bookingId);
+    }
+
     @Transactional(readOnly = true)
     public Booking requireForGuest(UUID guestId, UUID bookingId) {
         Booking booking = requireBooking(bookingId);
@@ -210,17 +388,21 @@ public class BookingService {
     @Transactional(readOnly = true)
     public Page<Booking> listForGuest(UUID guestId, String scope, Pageable pageable) {
         List<BookingStatus> statuses = scopeStatuses(scope);
-        return statuses == null
+        Page<Booking> page = statuses == null
                 ? bookingRepository.findByGuestId(guestId, pageable)
                 : bookingRepository.findByGuestIdAndStatusIn(guestId, statuses, pageable);
+        page.forEach(this::initialize);
+        return page;
     }
 
     @Transactional(readOnly = true)
     public Page<Booking> listForHost(UUID hostId, String scope, Pageable pageable) {
         List<BookingStatus> statuses = scopeStatuses(scope);
-        return statuses == null
+        Page<Booking> page = statuses == null
                 ? bookingRepository.findByHostId(hostId, pageable)
                 : bookingRepository.findByHostIdAndStatusIn(hostId, statuses, pageable);
+        page.forEach(this::initialize);
+        return page;
     }
 
     /** Host accepts a request; the guest then has the payment window to pay. */
@@ -270,6 +452,7 @@ public class BookingService {
         bookingRepository.save(booking);
 
         issueRefundIfDue(booking, refund, "Guest cancellation");
+        cancelPayout(bookingId, "Cancelled by guest");
         auditService.record(guestId, AuditAction.BOOKING_CANCELLED, "Booking", bookingId,
                 Map.of("reference", booking.getReference(), "by", "GUEST",
                         "refund", refund.toPlainString(),
@@ -294,6 +477,7 @@ public class BookingService {
         bookingRepository.save(booking);
 
         issueRefundIfDue(booking, refund, "Host cancellation");
+        cancelPayout(bookingId, "Cancelled by host");
         auditService.record(hostId, AuditAction.BOOKING_CANCELLED, "Booking", bookingId,
                 Map.of("reference", booking.getReference(), "by", "HOST",
                         "refund", refund.toPlainString()), ip);
@@ -322,6 +506,9 @@ public class BookingService {
 
         booking.markPaidAndConfirm();
         bookingRepository.save(booking);
+        // The host is now owed money, but does not get it yet: the payout is
+        // scheduled behind a hold that outlasts the guest's arrival.
+        schedulePayout(booking);
         auditService.record(booking.getGuest().getId(), AuditAction.BOOKING_CONFIRMED,
                 "Booking", bookingId, Map.of("reference", booking.getReference()), null);
         return booking;
@@ -390,6 +577,39 @@ public class BookingService {
                 accommodation, booking.getGuestServiceFee(), firstNight);
     }
 
+    /**
+     * Schedules the host's money behind its hold. A failure here must not undo a
+     * paid, confirmed booking — the guest has a stay either way — so it is logged
+     * loudly rather than thrown; the payout sweep works from booking state and can
+     * be reconciled.
+     */
+    private void schedulePayout(Booking booking) {
+        PayoutPort port = payoutPort.getIfAvailable();
+        if (port == null) {
+            log.error("Booking {} confirmed but no payout port is available",
+                    booking.getReference());
+            return;
+        }
+        try {
+            port.scheduleForBooking(booking);
+        } catch (RuntimeException ex) {
+            log.error("Could not schedule payout for booking {}", booking.getReference(), ex);
+        }
+    }
+
+    /** Voids a payout for a stay that is no longer happening. */
+    private void cancelPayout(UUID bookingId, String reason) {
+        PayoutPort port = payoutPort.getIfAvailable();
+        if (port == null) {
+            return;
+        }
+        try {
+            port.cancelForBooking(bookingId, reason);
+        } catch (RuntimeException ex) {
+            log.error("Could not cancel payout for booking {}", bookingId, ex);
+        }
+    }
+
     private void issueRefundIfDue(Booking booking, BigDecimal refund, String reason) {
         if (!Money.isPositive(refund)) {
             return;
@@ -426,12 +646,17 @@ public class BookingService {
     }
 
     private Booking requireBooking(UUID bookingId) {
-        return bookingRepository.findByIdWithDetails(bookingId)
-                .orElseThrow(() -> ApiException.notFound("booking_not_found", "Booking not found"));
+        return initialize(bookingRepository.findByIdWithDetails(bookingId)
+                .orElseThrow(() -> ApiException.notFound("booking_not_found", "Booking not found")));
     }
 
     private boolean isOverlapViolation(DataIntegrityViolationException ex) {
         String message = ex.getMostSpecificCause().getMessage();
         return message != null && message.contains(OVERLAP_CONSTRAINT);
+    }
+
+    private boolean isOversoldViolation(DataIntegrityViolationException ex) {
+        String message = ex.getMostSpecificCause().getMessage();
+        return message != null && message.contains(OVERSOLD_CONSTRAINT);
     }
 }

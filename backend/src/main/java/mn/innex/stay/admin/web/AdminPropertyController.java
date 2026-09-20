@@ -6,7 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import mn.innex.stay.common.web.ClientIp;
 import mn.innex.stay.common.web.PageResponse;
-import mn.innex.stay.listing.domain.PropertyStatus;
+import mn.innex.stay.common.supply.SupplyStatus;
 import mn.innex.stay.listing.service.PropertyService;
 import mn.innex.stay.listing.storage.ObjectStorage;
 import mn.innex.stay.listing.web.dto.AdminPropertyStatusRequest;
@@ -52,7 +52,7 @@ public class AdminPropertyController {
      */
     @GetMapping
     public PageResponse<PropertyResponse> list(
-            @RequestParam(required = false) PropertyStatus status,
+            @RequestParam(required = false) SupplyStatus status,
             @PageableDefault(size = 25, sort = "updatedAt", direction = Sort.Direction.ASC)
             Pageable pageable) {
         return PageResponse.of(propertyService.listByStatusForAdmin(status, pageable),

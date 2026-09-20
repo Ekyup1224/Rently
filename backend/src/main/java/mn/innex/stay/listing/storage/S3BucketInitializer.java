@@ -1,5 +1,7 @@
 package mn.innex.stay.listing.storage;
 
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -63,6 +65,11 @@ public class S3BucketInitializer implements ApplicationRunner {
     }
 
     private void applyPublicReadPolicy(String bucket) {
+        // One statement covering every gallery prefix; houses, hotels and room
+        // types all serve their photos anonymously.
+        String resources = S3Properties.PUBLIC_PHOTO_PREFIXES.stream()
+                .map(prefix -> "\"arn:aws:s3:::%s/%s*\"".formatted(bucket, prefix))
+                .collect(Collectors.joining(", "));
         String policy = """
                 {
                   "Version": "2012-10-17",
@@ -71,15 +78,16 @@ public class S3BucketInitializer implements ApplicationRunner {
                       "Effect": "Allow",
                       "Principal": {"AWS": ["*"]},
                       "Action": ["s3:GetObject"],
-                      "Resource": ["arn:aws:s3:::%s/%s*"]
+                      "Resource": [%s]
                     }
                   ]
                 }
-                """.formatted(bucket, S3Properties.PHOTO_PREFIX);
+                """.formatted(resources);
         storage.client().putBucketPolicy(PutBucketPolicyRequest.builder()
                 .bucket(bucket)
                 .policy(policy)
                 .build());
-        log.info("Opened {}{} for public reads", bucket, "/" + S3Properties.PHOTO_PREFIX);
+        log.info("Opened {} in bucket {} for public reads",
+                S3Properties.PUBLIC_PHOTO_PREFIXES, bucket);
     }
 }

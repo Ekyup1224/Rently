@@ -5,7 +5,7 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
-import mn.innex.stay.listing.domain.CancellationPolicy;
+import mn.innex.stay.common.supply.CancellationPolicy;
 import mn.innex.stay.listing.domain.Property;
 import mn.innex.stay.listing.domain.PropertyType;
 import mn.innex.stay.listing.storage.ObjectStorage;
@@ -47,6 +47,9 @@ public record ListingDetailResponse(
         CancellationPolicy cancellationPolicy,
         boolean instantBook,
         List<PhotoResponse> photos,
+        /** Null until the first review of this listing is published. */
+        BigDecimal ratingAverage,
+        int ratingCount,
         HostSummary host) {
 
     /** @param since year the host joined, e.g. "2026" */
@@ -76,6 +79,7 @@ public record ListingDetailResponse(
                 property.getCleaningFee(), property.getCurrency(), property.getMinStayNights(),
                 property.getMaxStayNights(), property.getCancellationPolicy(),
                 property.isInstantBook(), photos,
+                property.getRatingAverage(), property.getRatingCount(),
                 new HostSummary(displayName,
                         String.valueOf(property.getOwner().getCreatedAt()
                                 .atZone(mn.innex.stay.common.PlatformTime.ZONE).getYear()),

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<p className="muted">Loading search…</p>}>
+    <Suspense fallback={null}>
       <SearchResults />
     </Suspense>
   )

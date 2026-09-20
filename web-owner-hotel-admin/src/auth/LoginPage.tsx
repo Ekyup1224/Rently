@@ -67,9 +67,11 @@ type SignedIn = ReturnType<typeof useAuth>['adopt']
 
 function PhoneForm({ onError, onSignedIn }: { onError: (message: string | null) => void; onSignedIn: SignedIn }) {
   const [phone, setPhone] = useState('')
+  const [code, setCode] = useState('')
   const [codeSent, setCodeSent] = useState(false)
   const [busy, setBusy] = useState(false)
   const [resendIn, setResendIn] = useState(0)
+  const [devCode, setDevCode] = useState<string | null>(null)
 
   // Mirrors the server's resend cooldown so the button is disabled for exactly as
   // long as a retry would be rejected.
@@ -88,6 +90,10 @@ function PhoneForm({ onError, onSignedIn }: { onError: (message: string | null) 
       const challenge = await auth.requestOtp(phone)
       setCodeSent(true)
       setResendIn(challenge.resendAfterSeconds)
+      // A development server hands the code straight back. Fill it in, replacing
+      // any earlier one, or a resend leaves the stale code sitting in the box.
+      setDevCode(challenge.devCode ?? null)
+      setCode(challenge.devCode ?? '')
     } catch (failure) {
       onError(describe(failure))
     } finally {
@@ -95,11 +101,11 @@ function PhoneForm({ onError, onSignedIn }: { onError: (message: string | null) 
     }
   }
 
-  async function verify(values: { code: string }) {
+  async function verify() {
     setBusy(true)
     onError(null)
     try {
-      onSignedIn(await auth.verifyOtp(phone, values.code, DEVICE_LABEL))
+      onSignedIn(await auth.verifyOtp(phone, code, DEVICE_LABEL))
     } catch (failure) {
       onError(describe(failure))
     } finally {
@@ -132,19 +138,35 @@ function PhoneForm({ onError, onSignedIn }: { onError: (message: string | null) 
 
   return (
     <Form layout="vertical" onFinish={verify}>
-      <Form.Item
-        label={`Code sent to ${phone}`}
-        name="code"
-        rules={[{ required: true, message: 'Enter the code you received' }]}
-      >
-        <Input size="large" placeholder="123456" maxLength={6} autoFocus inputMode="numeric" />
+      {devCode && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={`Development code: ${devCode}`}
+          description="This server logs codes instead of sending them, so it is filled in for
+            you. A deployed server sends it by SMS and never returns it here."
+        />
+      )}
+      <Form.Item label={`Code sent to ${phone}`} required>
+        <Input
+          size="large"
+          placeholder="123456"
+          maxLength={6}
+          autoFocus
+          inputMode="numeric"
+          value={code}
+          onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
+        />
       </Form.Item>
       <Space orientation="vertical" style={{ width: '100%' }}>
-        <Button type="primary" size="large" block htmlType="submit" loading={busy}>
+        <Button type="primary" size="large" block htmlType="submit" loading={busy}
+                disabled={code.length < 4}>
           Sign in
         </Button>
         <Flex justify="space-between">
-          <Button type="link" size="small" onClick={() => { setCodeSent(false); onError(null) }}>
+          <Button type="link" size="small"
+                  onClick={() => { setCodeSent(false); setCode(''); setDevCode(null); onError(null) }}>
             Change number
           </Button>
           <Button type="link" size="small" disabled={resendIn > 0 || busy} onClick={sendCode}>

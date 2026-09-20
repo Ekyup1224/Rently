@@ -13,6 +13,20 @@ public interface HostApplicationRepository extends JpaRepository<HostApplication
 
     List<HostApplication> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"user"})
+    org.springframework.data.domain.Page<HostApplication> findByStatus(
+            HostApplicationStatus status, org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * The unfiltered queue. Overridden only to carry the same fetch graph as
+     * {@link #findByStatus}: the response names the applicant, and without this
+     * the "all" tab would load each one separately.
+     */
+    @Override
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"user"})
+    org.springframework.data.domain.Page<HostApplication> findAll(
+            org.springframework.data.domain.Pageable pageable);
+
     Optional<HostApplication> findByUserIdAndRequestedRoleAndStatus(
             UUID userId, Role requestedRole, HostApplicationStatus status);
 }

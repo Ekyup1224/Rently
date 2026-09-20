@@ -55,6 +55,24 @@ public class CommissionRuleService {
         });
     }
 
+    /**
+     * The rule to price a hotel booking under. A rate negotiated with one hotel
+     * beats the global rate, which is how a chain gets different terms.
+     */
+    @Transactional(readOnly = true)
+    public CommissionRule resolveForHotel(UUID hotelId, Instant at) {
+        List<CommissionRule> hotelSpecific =
+                repository.findEffective(CommissionScope.HOTEL, hotelId.toString(), at);
+        if (!hotelSpecific.isEmpty()) {
+            return hotelSpecific.get(0);
+        }
+        return repository.findEffectiveGlobal(at).orElseThrow(() -> {
+            log.error("No effective GLOBAL commission rule at {} — pricing is blocked", at);
+            return new ApiException(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                    "commission_not_configured", "No commission rule is configured");
+        });
+    }
+
     @Transactional(readOnly = true)
     public List<CommissionRule> listAll() {
         return repository.findAllByOrderByEffectiveFromDesc();

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Alert, Button, Card, Empty, Flex, Image, Popconfirm, Select, Space, Spin, Tag,
-  Typography, message,
+  Alert, App as AntApp, Button, Card, Empty, Flex, Image, Popconfirm, Select, Space, Spin, Tag,
+  Typography,
 } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { RequestError } from '../../api/client'
@@ -9,9 +9,14 @@ import { owner } from '../../api/endpoints'
 import type { Property, PropertyStatus } from '../../types'
 import { CreateListingModal } from './CreateListingModal'
 import { STATUS_COLORS, STATUS_LABELS, formatMoney } from './listingFormat'
+import { PageHead } from '../../ui/PageHead'
 
 /** An owner's listings, with the actions each one's state actually allows. */
 export function PropertiesPage() {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const navigate = useNavigate()
   const [listings, setListings] = useState<Property[] | null>(null)
   const [status, setStatus] = useState<PropertyStatus | undefined>()
@@ -41,7 +46,7 @@ export function PropertiesPage() {
     return () => {
       cancelled = true
     }
-  }, [status, reloadToken])
+  }, [status, reloadToken, message])
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), [])
 
@@ -61,7 +66,10 @@ export function PropertiesPage() {
   return (
     <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
       <Flex align="center" justify="space-between" wrap gap={12}>
-        <Typography.Title level={3} style={{ margin: 0 }}>Properties</Typography.Title>
+        <PageHead
+        title="Properties"
+        description={'Your houses and apartments, and where each one is in the approval process.'}
+      />
         <Space>
           <Select<PropertyStatus>
             allowClear

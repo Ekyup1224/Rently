@@ -31,11 +31,14 @@ import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
+import mn.innex.stay.common.supply.Amenity;
+import mn.innex.stay.common.supply.CancellationPolicy;
+import mn.innex.stay.common.supply.SupplyStatus;
 
 /**
  * A whole-place listing: house, apartment or ger.
  *
- * <p>Only an {@link PropertyStatus#APPROVED} listing is visible to guests, and
+ * <p>Only an {@link SupplyStatus#APPROVED} listing is visible to guests, and
  * reaching that state requires the data a guest needs to make a decision —
  * enforced both by {@link #reviewReadinessProblems()} here and by a CHECK
  * constraint in the migration, so neither a code path nor a manual SQL edit can
@@ -130,10 +133,20 @@ public class Property {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 24)
-    private PropertyStatus status = PropertyStatus.DRAFT;
+    private SupplyStatus status = SupplyStatus.DRAFT;
 
     @Column(name = "rejection_reason", columnDefinition = "text")
     private String rejectionReason;
+
+    /**
+     * Cached from published reviews. Null until the first one, which is not the
+     * same as zero: an unrated place should say "new", not "nobody liked it".
+     */
+    @Column(name = "rating_average", precision = 3, scale = 2)
+    private java.math.BigDecimal ratingAverage;
+
+    @Column(name = "rating_count", nullable = false)
+    private int ratingCount;
 
     @Column(name = "published_at")
     private Instant publishedAt;
@@ -221,12 +234,12 @@ public class Property {
     }
 
     public void submitForReview() {
-        this.status = PropertyStatus.PENDING_REVIEW;
+        this.status = SupplyStatus.PENDING_REVIEW;
         this.rejectionReason = null;
     }
 
     public void approve() {
-        this.status = PropertyStatus.APPROVED;
+        this.status = SupplyStatus.APPROVED;
         this.rejectionReason = null;
         if (publishedAt == null) {
             publishedAt = Instant.now();
@@ -234,7 +247,7 @@ public class Property {
     }
 
     public void reject(String reason) {
-        this.status = PropertyStatus.REJECTED;
+        this.status = SupplyStatus.REJECTED;
         this.rejectionReason = reason;
     }
 
@@ -439,11 +452,11 @@ public class Property {
         this.instantBook = instantBook;
     }
 
-    public PropertyStatus getStatus() {
+    public SupplyStatus getStatus() {
         return status;
     }
 
-    public void setStatus(PropertyStatus status) {
+    public void setStatus(SupplyStatus status) {
         this.status = status;
     }
 
@@ -478,5 +491,13 @@ public class Property {
     @Override
     public int hashCode() {
         return id == null ? System.identityHashCode(this) : id.hashCode();
+    }
+
+    public java.math.BigDecimal getRatingAverage() {
+        return ratingAverage;
+    }
+
+    public int getRatingCount() {
+        return ratingCount;
     }
 }

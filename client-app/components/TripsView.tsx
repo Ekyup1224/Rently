@@ -2,34 +2,19 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { WriteReview } from './WriteReview'
+import { useLanguage } from '@/lib/i18n'
 import { api, describeError } from '@/lib/api'
 import { formatDateRange, formatMoney } from '@/lib/format'
 import type { Booking, BookingStatus } from '@/lib/types'
 import { useAuth } from './AuthProvider'
 
-const SCOPES = [
-  { value: 'upcoming', label: 'Upcoming' },
-  { value: 'past', label: 'Past' },
-  { value: 'cancelled', label: 'Cancelled' },
-  { value: 'all', label: 'All' },
-]
-
-const STATUS_COPY: Record<BookingStatus, string> = {
-  PENDING_HOST_APPROVAL: 'Waiting for the host',
-  PENDING_PAYMENT: 'Payment needed',
-  CONFIRMED: 'Confirmed',
-  CHECKED_IN: 'Checked in',
-  CHECKED_OUT: 'Checked out',
-  COMPLETED: 'Completed',
-  DECLINED: 'Declined by host',
-  EXPIRED: 'Expired',
-  CANCELLED_BY_GUEST: 'You cancelled',
-  CANCELLED_BY_HOST: 'Host cancelled',
-}
+const SCOPES = ['upcoming', 'past', 'cancelled', 'all'] as const
 
 /** A guest's bookings, with whatever action each one is waiting on. */
 export function TripsView() {
   const { user, loading } = useAuth()
+  const { t, locale } = useLanguage()
   const [scope, setScope] = useState('upcoming')
   const [trips, setTrips] = useState<Booking[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -78,64 +63,75 @@ export function TripsView() {
   }
 
   if (loading) {
-    return <p className="muted">Loading…</p>
+    return <p className="muted">{t('common.loading')}</p>
   }
 
   if (!user) {
     return (
       <div className="card">
-        <p style={{ marginTop: 0 }}>Sign in to see your bookings.</p>
-        <Link href="/login" className="button">Sign in</Link>
+        <p style={{ marginTop: 0 }}>{t('trips.signInBody')}</p>
+        <Link href="/login" className="button">{t('nav.signIn')}</Link>
       </div>
     )
   }
 
   return (
     <>
-      <div className="segmented" role="group" aria-label="Which trips">
+      <h1>{t('trips.title')}</h1>
+      <div className="segmented" role="group" aria-label={t('trips.which')}>
         {SCOPES.map((option) => (
           <button
-            key={option.value}
+            key={option}
             type="button"
-            aria-pressed={scope === option.value}
-            onClick={() => setScope(option.value)}
+            aria-pressed={scope === option}
+            onClick={() => setScope(option)}
           >
-            {option.label}
+            {t(`trips.${option}`)}
           </button>
         ))}
       </div>
 
       {error && <div className="alert alert--error">{error}</div>}
-      {trips === null && <p className="muted">Loading…</p>}
+      {trips === null && <p className="muted">{t('common.loading')}</p>}
 
       {trips?.length === 0 && (
         <div className="card">
-          <h2 className="card__title">Nothing here</h2>
+          <h2 className="card__title">{t('trips.nothingHere')}</h2>
           <p className="muted small" style={{ marginTop: 0, marginBottom: 12 }}>
-            {scope === 'upcoming'
-              ? 'You have no upcoming stays.'
-              : 'Nothing in this list yet.'}
+            {scope === 'upcoming' ? t('trips.noUpcoming') : t('trips.noneInList')}
           </p>
-          <Link href="/search" className="button">Find a stay</Link>
+          <Link href="/search" className="button">{t('trips.find')}</Link>
         </div>
       )}
 
       {trips?.map((trip) => {
         const cancellable = ['PENDING_HOST_APPROVAL', 'PENDING_PAYMENT', 'CONFIRMED']
           .includes(trip.status)
+        const reviewable = ['CHECKED_OUT', 'COMPLETED'].includes(trip.status)
+        // A thread only helps once there is a stay to talk about.
+        const messageable = !['PENDING_PAYMENT', 'DECLINED', 'EXPIRED'].includes(trip.status)
 
         return (
           <div className="card" key={trip.id}>
             <div className="row" style={{ justifyContent: 'space-between', gap: 12 }}>
               <div style={{ minWidth: 0 }}>
                 <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-                  <strong>{trip.listing?.title ?? 'Your stay'}</strong>
-                  <span className="tag">{STATUS_COPY[trip.status]}</span>
+                  <strong>{trip.listing?.title ?? t('trips.yourStay')}</strong>
+                  <span className="tag">{t(`status.${trip.status}`)}</span>
                 </div>
+                {trip.listing?.roomTypeName && (
+                  <p className="small" style={{ margin: '4px 0 0' }}>
+                    {trip.listing.roomTypeName}
+                    {trip.listing.rooms && trip.listing.rooms > 1
+                      && ` · ${t('trips.roomsCount', { count: trip.listing.rooms })}`}
+                  </p>
+                )}
                 <p className="muted small" style={{ margin: '4px 0' }}>
-                  {formatDateRange(trip.checkIn, trip.checkOut)} · {trip.nights} night
-                  {trip.nights > 1 ? 's' : ''} · {trip.guestCount} guest
-                  {trip.guestCount > 1 ? 's' : ''}
+                  {formatDateRange(trip.checkIn, trip.checkOut, locale)}
+                  {' · '}{trip.nights === 1
+                    ? t('common.night_one') : t('common.nights', { count: trip.nights })}
+                  {' · '}{trip.guestCount === 1
+                    ? t('common.guest_one') : t('common.guests', { count: trip.guestCount })}
                 </p>
                 <p className="small" style={{ margin: 0 }}>
                   {formatMoney(trip.total, trip.currency)}
@@ -143,12 +139,14 @@ export function TripsView() {
                 </p>
                 {trip.hostResponseNote && (
                   <p className="muted small" style={{ margin: '6px 0 0' }}>
-                    Host: “{trip.hostResponseNote}”
+                    {t('trips.hostSaid', { note: trip.hostResponseNote })}
                   </p>
                 )}
                 {trip.refundAmount != null && trip.refundAmount > 0 && (
                   <p className="muted small" style={{ margin: '6px 0 0' }}>
-                    Refunded {formatMoney(trip.refundAmount, trip.currency)}
+                    {t('trips.refunded', {
+                      amount: formatMoney(trip.refundAmount, trip.currency),
+                    })}
                   </p>
                 )}
               </div>
@@ -157,13 +155,26 @@ export function TripsView() {
                 {trip.status === 'PENDING_PAYMENT' && (
                   <Link href={`/bookings/${trip.id}/checkout`}
                         className="button button--block">
-                    Pay now
+                    {t('trips.payNow')}
                   </Link>
                 )}
                 {trip.listing && (
-                  <Link href={`/listings/${trip.listing.id}`}
-                        className="button button--ghost button--block">
-                    View listing
+                  <Link
+                    href={trip.listing.supplyType === 'HOTEL'
+                      ? `/hotels/${trip.listing.id}`
+                      : `/listings/${trip.listing.id}`}
+                    className="button button--ghost button--block"
+                  >
+                    {trip.listing.supplyType === 'HOTEL'
+                      ? t('trips.viewHotel') : t('trips.viewListing')}
+                  </Link>
+                )}
+                {messageable && (
+                  <Link
+                    href={`/messages?booking=${trip.id}`}
+                    className="button button--ghost button--block"
+                  >
+                    {t('messages.open')}
                   </Link>
                 )}
                 {cancellable && (
@@ -173,11 +184,12 @@ export function TripsView() {
                     disabled={busyId === trip.id}
                     onClick={() => cancel(trip)}
                   >
-                    {busyId === trip.id ? 'Cancelling…' : 'Cancel'}
+                    {busyId === trip.id ? t('trips.cancelling') : t('trips.cancel')}
                   </button>
                 )}
               </div>
             </div>
+            {reviewable && <WriteReview bookingId={trip.id} />}
           </div>
         )
       })}

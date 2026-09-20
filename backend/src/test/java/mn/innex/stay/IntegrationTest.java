@@ -38,6 +38,21 @@ public abstract class IntegrationTest {
         REDIS.start();
     }
 
+    /**
+     * Phone numbers are unique across the whole database, and every test class in
+     * the run shares one Postgres, so they have to be unique across the run too.
+     * One counter here rather than a hand-picked block per class: two classes
+     * picking the same block fails far away from the mistake, in whichever test
+     * happened to run second.
+     */
+    private static final java.util.concurrent.atomic.AtomicInteger PHONES =
+            new java.util.concurrent.atomic.AtomicInteger(10_000_000);
+
+    /** @return a Mongolian mobile number no other test is using */
+    protected static String uniquePhone() {
+        return "+9769" + PHONES.incrementAndGet();
+    }
+
     /** Wires the containers in and swaps the SMS gateway for something inspectable. */
     @org.springframework.boot.test.context.TestConfiguration
     public static class TestInfrastructure {
@@ -63,7 +78,11 @@ public abstract class IntegrationTest {
 
     /**
      * Captures outbound messages so a test can read back the code that was "sent".
-     * This is the only way a test can learn a code — the API never returns one.
+     *
+     * <p>The development configuration also returns the code from the request
+     * endpoint, but a test should read it from here: that path is switched off in
+     * any real deployment, and asserting through it would prove nothing about how
+     * the code actually reaches a person.
      */
     public static class RecordingSmsSender implements SmsSender {
 

@@ -1,4 +1,4 @@
-package mn.innex.stay.listing.domain;
+package mn.innex.stay.common.supply;
 
 /**
  * Cancellation tiers offered to hosts, with the refund each gives a guest.

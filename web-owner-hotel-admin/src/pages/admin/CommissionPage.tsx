@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Alert, Button, Card, Form, InputNumber, Input, Space, Spin, Table, Tag, Typography, message,
+  Alert, App as AntApp, Button, Card, Form, Input, InputNumber, Space, Spin, Table, Tag,
+  Typography,
 } from 'antd'
 import dayjs from 'dayjs'
 import { RequestError } from '../../api/client'
 import { adminListings } from '../../api/endpoints'
 import type { CommissionRule } from '../../types'
+import { PageHead } from '../../ui/PageHead'
 
 /**
  * The platform's take rate.
@@ -15,6 +17,10 @@ import type { CommissionRule } from '../../types'
  * history, not a list of settings.
  */
 export function CommissionPage() {
+  // The context instance, not the static one: static message renders outside
+  // AntApp's holder and gets hidden behind the app shell header.
+  const { message } = AntApp.useApp()
+
   const [rules, setRules] = useState<CommissionRule[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [reloadToken, setReloadToken] = useState(0)
@@ -42,7 +48,7 @@ export function CommissionPage() {
     return () => {
       cancelled = true
     }
-  }, [reloadToken])
+  }, [reloadToken, message])
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), [])
 
@@ -64,7 +70,10 @@ export function CommissionPage() {
 
   return (
     <Space orientation="vertical" size="middle" style={{ width: '100%', maxWidth: 900 }}>
-      <Typography.Title level={3} style={{ margin: 0 }}>Commission</Typography.Title>
+      <PageHead
+        title="Commission"
+        description={'What the platform takes, and from whom. A new rule applies to bookings made after it starts; it never re-prices one already made.'}
+      />
 
       <Alert
         type="info"

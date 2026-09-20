@@ -4,10 +4,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from './AuthProvider'
+import { LanguageSwitch } from './LanguageSwitch'
+import { useT } from '@/lib/i18n'
 
 export function SiteHeader() {
   const { user, loading, signOut } = useAuth()
   const router = useRouter()
+  const t = useT()
 
   return (
     <header className="site-header">
@@ -18,12 +21,14 @@ export function SiteHeader() {
         </Link>
 
         <nav className="nav">
+          <LanguageSwitch />
           {loading ? (
             <span className="muted small">…</span>
           ) : user ? (
             <>
-              <Link href="/trips" className="button button--link">Trips</Link>
-              <Link href="/account" className="button button--link">Account</Link>
+              <Link href="/trips" className="button button--link">{t('nav.trips')}</Link>
+              <Link href="/messages" className="button button--link">{t('nav.messages')}</Link>
+              <Link href="/account" className="button button--link">{t('nav.account')}</Link>
               <button
                 type="button"
                 className="button button--ghost"
@@ -32,11 +37,11 @@ export function SiteHeader() {
                   router.push('/')
                 }}
               >
-                Sign out
+                {t('nav.signOut')}
               </button>
             </>
           ) : (
-            <Link href="/login" className="button">Sign in</Link>
+            <Link href="/login" className="button">{t('nav.signIn')}</Link>
           )}
         </nav>
       </div>

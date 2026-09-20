@@ -9,9 +9,11 @@ import java.util.UUID;
 import mn.innex.stay.common.ApiException;
 import mn.innex.stay.common.audit.AuditAction;
 import mn.innex.stay.common.audit.AuditService;
-import mn.innex.stay.listing.domain.Amenity;
+import mn.innex.stay.common.supply.ListingReviewGate;
+import mn.innex.stay.common.supply.SupplyKind;
+import mn.innex.stay.common.supply.Amenity;
 import mn.innex.stay.listing.domain.Property;
-import mn.innex.stay.listing.domain.PropertyStatus;
+import mn.innex.stay.common.supply.SupplyStatus;
 import mn.innex.stay.listing.domain.PropertyType;
 import mn.innex.stay.listing.repo.PropertyRepository;
 import mn.innex.stay.listing.web.dto.PropertyCreateRequest;
@@ -22,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,12 +50,15 @@ public class PropertyService {
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final ObjectProvider<ListingReviewGate> reviewGate;
 
     public PropertyService(PropertyRepository propertyRepository, UserRepository userRepository,
-                           AuditService auditService) {
+                           AuditService auditService,
+                           ObjectProvider<ListingReviewGate> reviewGate) {
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
+        this.reviewGate = reviewGate;
     }
 
     @Transactional
@@ -175,7 +181,7 @@ public class PropertyService {
 
         // A live listing whose location or type changed goes back in the queue: the
         // approval was a judgement about those facts.
-        if (requiresReReview && property.getStatus() == PropertyStatus.APPROVED) {
+        if (requiresReReview && property.getStatus() == SupplyStatus.APPROVED) {
             property.submitForReview();
             changes.put("statusChange", "APPROVED -> PENDING_REVIEW");
             log.info("Listing {} returned to review after a change to {}",
@@ -218,10 +224,10 @@ public class PropertyService {
     @Transactional
     public Property pause(UUID ownerId, UUID propertyId, String ip) {
         Property property = requireOwned(ownerId, propertyId);
-        if (property.getStatus() != PropertyStatus.APPROVED) {
+        if (property.getStatus() != SupplyStatus.APPROVED) {
             throw ApiException.conflict("listing_not_live", "Only a live listing can be paused");
         }
-        property.setStatus(PropertyStatus.PAUSED);
+        property.setStatus(SupplyStatus.PAUSED);
         propertyRepository.save(property);
         auditService.record(ownerId, AuditAction.PROPERTY_STATUS_CHANGED, "Property", propertyId,
                 Map.of("to", "PAUSED"), ip);
@@ -231,7 +237,7 @@ public class PropertyService {
     @Transactional
     public Property resume(UUID ownerId, UUID propertyId, String ip) {
         Property property = requireOwned(ownerId, propertyId);
-        if (property.getStatus() != PropertyStatus.PAUSED) {
+        if (property.getStatus() != SupplyStatus.PAUSED) {
             throw ApiException.conflict("listing_not_paused", "This listing is not paused");
         }
         // Straight back to live: it was already approved, and pausing is not a
@@ -244,7 +250,7 @@ public class PropertyService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Property> listForOwner(UUID ownerId, PropertyStatus status, Pageable pageable) {
+    public Page<Property> listForOwner(UUID ownerId, SupplyStatus status, Pageable pageable) {
         return status == null
                 ? propertyRepository.findByOwnerId(ownerId, pageable)
                 : propertyRepository.findByOwnerIdAndStatus(ownerId, status, pageable);
@@ -283,20 +289,27 @@ public class PropertyService {
 
     /** Admin review decision. Rejecting or suspending requires a reason. */
     @Transactional
-    public Property setStatusAsAdmin(UUID actorId, UUID propertyId, PropertyStatus status,
+    public Property setStatusAsAdmin(UUID actorId, UUID propertyId, SupplyStatus status,
                                      String reason, String ip) {
         Property property = propertyRepository.findByIdWithPhotos(propertyId)
                 .orElseThrow(() -> ApiException.notFound("listing_not_found", "Listing not found"));
 
-        boolean needsReason = status == PropertyStatus.REJECTED || status == PropertyStatus.SUSPENDED;
+        boolean needsReason = status == SupplyStatus.REJECTED || status == SupplyStatus.SUSPENDED;
         if (needsReason && (reason == null || reason.isBlank())) {
             throw ApiException.badRequest("reason_required",
                     "A reason is required so the owner knows what to fix");
         }
 
-        PropertyStatus previous = property.getStatus();
+        SupplyStatus previous = property.getStatus();
         switch (status) {
             case APPROVED -> {
+                // An unresolved flag outranks a reviewer's approval: whoever is
+                // looking at this listing may not know what was raised against it.
+                ListingReviewGate gate = reviewGate.getIfAvailable();
+                if (gate != null && gate.isBlocked(SupplyKind.PROPERTY, propertyId)) {
+                    throw ApiException.conflict("listing_flagged",
+                            "This listing has an unresolved flag and cannot be approved yet");
+                }
                 List<String> problems = property.reviewReadinessProblems();
                 if (!problems.isEmpty()) {
                     throw ApiException.badRequest("listing_incomplete",
@@ -321,7 +334,7 @@ public class PropertyService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Property> listByStatusForAdmin(PropertyStatus status, Pageable pageable) {
+    public Page<Property> listByStatusForAdmin(SupplyStatus status, Pageable pageable) {
         return status == null
                 ? propertyRepository.findAll(pageable)
                 : propertyRepository.findByStatus(status, pageable);
@@ -335,8 +348,8 @@ public class PropertyService {
     @Transactional
     public void delete(UUID ownerId, UUID propertyId, String ip) {
         Property property = requireOwned(ownerId, propertyId);
-        if (property.getStatus() != PropertyStatus.DRAFT
-                && property.getStatus() != PropertyStatus.REJECTED) {
+        if (property.getStatus() != SupplyStatus.DRAFT
+                && property.getStatus() != SupplyStatus.REJECTED) {
             throw ApiException.conflict("listing_not_deletable",
                     "Only a draft or rejected listing can be deleted. Pause it instead.");
         }

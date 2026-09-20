@@ -21,6 +21,17 @@ const mediaIsLocal = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(mediaOr
 
 const nextConfig: NextConfig = {
   images: {
+    /**
+     * The widths this app actually asks for.
+     *
+     * <p>next/image serves only the sizes named here and rejects anything else
+     * with a 400, which renders as a silently blank card rather than an error —
+     * so a width used in a component but missing from this list is a broken
+     * image nobody notices. Keep it in step with the `width` props in
+     * components/: 28 is the header mark, 72 the photo strip thumbnails,
+     * 112/168 the row cards, 320 the grid cards.
+     */
+    imageSizes: [16, 28, 32, 48, 64, 72, 96, 112, 128, 168, 256, 320, 384],
     dangerouslyAllowLocalIP: mediaIsLocal,
     remotePatterns: [{
       protocol: mediaOrigin.protocol.replace(':', '') as 'http' | 'https',

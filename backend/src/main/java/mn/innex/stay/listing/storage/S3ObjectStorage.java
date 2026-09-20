@@ -15,6 +15,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
@@ -89,6 +90,23 @@ public class S3ObjectStorage implements ObjectStorage {
         } catch (S3Exception ex) {
             // A 404 from HeadObject can surface as a generic S3Exception depending
             // on the implementation, so treat "not found" as absence, not failure.
+            if (ex.statusCode() == 404) {
+                return Optional.empty();
+            }
+            throw ex;
+        }
+    }
+
+    @Override
+    public Optional<byte[]> read(String key) {
+        try {
+            return Optional.of(client.getObjectAsBytes(GetObjectRequest.builder()
+                    .bucket(properties.bucket())
+                    .key(key)
+                    .build()).asByteArray());
+        } catch (NoSuchKeyException ignored) {
+            return Optional.empty();
+        } catch (S3Exception ex) {
             if (ex.statusCode() == 404) {
                 return Optional.empty();
             }
