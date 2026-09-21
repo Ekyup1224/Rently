@@ -30,6 +30,14 @@
   --radius: 20px;
   --radius-sm: 14px;
 
+  /* One height for every form control, so a row of them lines up. A <select>
+     cannot be sized by line-height — Chrome forces line-height: normal on it
+     and ignores the author value — so it lands ~2px shorter than an <input>
+     with identical padding, and `align-items: end` then drops it below its
+     neighbours. Stating the height outright is the only thing that holds:
+     the body's 1.55 line-height, plus 11px padding and a 1px border, twice. */
+  --control-h: calc(1.55rem + 24px);
+
   /* Warm-tinted rather than grey: a neutral shadow on a tinted ground reads as
      dirt, a tinted one as depth. */
   --shadow-sm: 0 1px 2px rgba(43, 33, 27, 0.05), 0 1px 3px rgba(184, 75, 42, 0.05);
@@ -211,6 +219,7 @@ h2 {
 
 input, select, textarea {
   width: 100%;
+  min-height: var(--control-h);
   padding: 11px 13px;
   font: inherit;
   color: var(--ink);
@@ -237,6 +246,7 @@ input:disabled { background: var(--ground); color: var(--ink-muted); }
 .avail-cal__trigger {
   display: block;
   width: 100%;
+  min-height: var(--control-h);
   text-align: left;
   padding: 11px 13px;
   font: inherit;
