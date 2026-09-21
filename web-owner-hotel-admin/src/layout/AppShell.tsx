@@ -141,9 +141,20 @@ export function AppShell() {
       <Layout.Sider breakpoint="lg" collapsedWidth={0} width={236} theme="light"
                     className="shell__sider">
         <div className="shell__brand">
-          <span className="shell__mark">S</span>
+          <span className="shell__mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" fill="none" width={18} height={18}>
+              <circle cx="32" cy="32" r="25" stroke="currentColor" strokeWidth="5" />
+              <g stroke="currentColor" strokeWidth="5" strokeLinecap="round">
+                <line x1="32" y1="8" x2="32" y2="21" />
+                <line x1="32" y1="43" x2="32" y2="56" />
+                <line x1="8" y1="32" x2="21" y2="32" />
+                <line x1="43" y1="32" x2="56" y2="32" />
+              </g>
+              <circle cx="32" cy="32" r="7.5" fill="currentColor" />
+            </svg>
+          </span>
           <div style={{ lineHeight: 1.2 }}>
-            <Typography.Text strong style={{ display: 'block' }}>Stay</Typography.Text>
+            <Typography.Text strong style={{ display: 'block' }}>Rently</Typography.Text>
             <Typography.Text style={{ fontSize: 11, color: palette.inkMuted }}>
               Partner portal
             </Typography.Text>
