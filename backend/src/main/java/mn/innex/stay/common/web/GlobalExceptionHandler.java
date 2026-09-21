@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /** Turns every failure into the one {@link ErrorResponse} shape. */
@@ -43,6 +44,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleParameterValidation(HandlerMethodValidationException ex) {
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.of("validation_failed", "Request parameters failed validation"));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        // A path variable or query parameter that could not be converted — most
+        // often a UUID that is not one. Without this it falls through to the
+        // catch-all below, which reports the caller's typo as a 500 (telling
+        // clients and proxies to retry a request that can never succeed) and
+        // writes a stack trace to the error log for every mistyped URL.
+        log.debug("Unconvertible value for parameter '{}'", ex.getName());
+        // The name, never the value: the value is caller-supplied and would be
+        // reflected straight back out.
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.of("bad_request",
+                        "Parameter '" + ex.getName() + "' has an invalid value"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
