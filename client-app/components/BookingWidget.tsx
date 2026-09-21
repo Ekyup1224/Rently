@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api, describeError } from '@/lib/api'
-import { addDays, formatMoney, nightsBetween, todayInUlaanbaatar } from '@/lib/format'
+import { formatDateRange, formatMoney, nightsBetween } from '@/lib/format'
 import type { ListingDetail, Quote } from '@/lib/types'
-import { useT } from '@/lib/i18n'
+import { useLanguage } from '@/lib/i18n'
 import { useAuth } from './AuthProvider'
+import { AvailabilityCalendar } from './AvailabilityCalendar'
 import { QuoteBreakdown } from './QuoteBreakdown'
 
 /**
@@ -27,9 +28,8 @@ export function BookingWidget({
   initialGuests: number
 }) {
   const { user } = useAuth()
-  const t = useT()
+  const { locale, t } = useLanguage()
   const router = useRouter()
-  const today = todayInUlaanbaatar()
 
   const [checkIn, setCheckIn] = useState(initialCheckIn)
   const [checkOut, setCheckOut] = useState(initialCheckOut)
@@ -40,6 +40,7 @@ export function BookingWidget({
   const [quoting, setQuoting] = useState(false)
   const [booking, setBooking] = useState(false)
   const [bookingError, setBookingError] = useState<string | null>(null)
+  const [calendarOpen, setCalendarOpen] = useState(false)
 
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0
 
@@ -109,39 +110,38 @@ export function BookingWidget({
         <span className="muted small" style={{ fontWeight: 400 }}> / night</span>
       </h2>
 
-      <div className="grid-2">
-        <label className="field">
-          <span className="field__label">{t('search.checkIn')}</span>
-          <input
-            type="date"
-            min={today}
-            value={checkIn}
-            onChange={(event) => {
-              const value = event.target.value
-              setCheckIn(value)
-              if (value && (!checkOut || checkOut <= value)) {
-                setCheckOut(addDays(value, Math.max(1, listing.minStayNights)))
-              }
-            }}
-          />
-        </label>
-        <label className="field">
-          <span className="field__label">{t('search.checkOut')}</span>
-          <input
-            type="date"
-            min={checkIn ? addDays(checkIn, 1) : addDays(today, 1)}
-            value={checkOut}
-            onChange={(event) => setCheckOut(event.target.value)}
-          />
-        </label>
-      </div>
+      <label className="field">
+        <span className="field__label">{t('search.checkIn')} – {t('search.checkOut')}</span>
+        <button
+          type="button"
+          className="avail-cal__trigger"
+          onClick={() => setCalendarOpen((open) => !open)}
+        >
+          {checkIn && checkOut ? formatDateRange(checkIn, checkOut, locale) : t('book.selectDates')}
+        </button>
+      </label>
+
+      {calendarOpen && (
+        <AvailabilityCalendar
+          listingId={listing.id}
+          checkIn={checkIn}
+          checkOut={checkOut}
+          onSelect={(nextCheckIn, nextCheckOut) => {
+            setCheckIn(nextCheckIn)
+            setCheckOut(nextCheckOut)
+            if (nextCheckIn && nextCheckOut) {
+              setCalendarOpen(false)
+            }
+          }}
+        />
+      )}
 
       <label className="field">
         <span className="field__label">{t('search.guests')}</span>
         <select value={guests} onChange={(event) => setGuests(Number(event.target.value))}>
           {Array.from({ length: listing.maxGuests }, (_, index) => index + 1).map((count) => (
             <option key={count} value={count}>
-              {count} guest{count > 1 ? 's' : ''}
+              {count === 1 ? t('common.guest_one') : t('common.guests', { count })}
             </option>
           ))}
         </select>

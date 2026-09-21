@@ -5,9 +5,10 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { api, describeError } from '@/lib/api'
-import { addDays, formatMoney, nightsBetween, todayInUlaanbaatar } from '@/lib/format'
+import { formatDateRange, formatMoney, nightsBetween } from '@/lib/format'
 import type { HotelDetail, Quote, RoomTypeAvailability } from '@/lib/types'
-import { useT } from '@/lib/i18n'
+import { useLanguage } from '@/lib/i18n'
+import { AvailabilityCalendar } from './AvailabilityCalendar'
 import { useAuth } from './AuthProvider'
 import { QuoteBreakdown } from './QuoteBreakdown'
 
@@ -33,9 +34,8 @@ export function HotelRoomPicker({
   initialGuests: number
 }) {
   const { user } = useAuth()
-  const t = useT()
+  const { locale, t } = useLanguage()
   const router = useRouter()
-  const today = todayInUlaanbaatar()
 
   const maxCapacity = Math.max(...hotel.roomTypes.map((room) => room.capacity), 1)
 
@@ -43,6 +43,7 @@ export function HotelRoomPicker({
   const [checkOut, setCheckOut] = useState(initialCheckOut)
   const [guests, setGuests] = useState(Math.max(1, initialGuests))
   const [rooms, setRooms] = useState(1)
+  const [calendarOpen, setCalendarOpen] = useState(false)
   const [availability, setAvailability] = useState<RoomTypeAvailability[] | null>(null)
   const [availabilityError, setAvailabilityError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -156,32 +157,33 @@ export function HotelRoomPicker({
     <div className="card" id="rooms">
       <h2 className="card__title">{t('hotel.chooseDates')}</h2>
 
-      <div className="grid-2">
-        <label className="field">
-          <span className="field__label">{t('search.checkIn')}</span>
-          <input
-            type="date"
-            min={today}
-            value={checkIn}
-            onChange={(event) => {
-              const value = event.target.value
-              setCheckIn(value)
-              if (value && (!checkOut || checkOut <= value)) {
-                setCheckOut(addDays(value, 1))
-              }
-            }}
-          />
-        </label>
-        <label className="field">
-          <span className="field__label">{t('search.checkOut')}</span>
-          <input
-            type="date"
-            min={checkIn ? addDays(checkIn, 1) : addDays(today, 1)}
-            value={checkOut}
-            onChange={(event) => setCheckOut(event.target.value)}
-          />
-        </label>
-      </div>
+      <label className="field">
+        <span className="field__label">{t('search.checkIn')} – {t('search.checkOut')}</span>
+        <button
+          type="button"
+          className="avail-cal__trigger"
+          onClick={() => setCalendarOpen((open) => !open)}
+        >
+          {checkIn && checkOut ? formatDateRange(checkIn, checkOut, locale) : t('book.selectDates')}
+        </button>
+      </label>
+
+      {calendarOpen && (
+        // No listing id: a hotel's availability is a question about room types
+        // over a range, which the list below answers once both dates exist —
+        // there is no per-night endpoint to shade this calendar with.
+        <AvailabilityCalendar
+          checkIn={checkIn}
+          checkOut={checkOut}
+          onSelect={(nextCheckIn, nextCheckOut) => {
+            setCheckIn(nextCheckIn)
+            setCheckOut(nextCheckOut)
+            if (nextCheckIn && nextCheckOut) {
+              setCalendarOpen(false)
+            }
+          }}
+        />
+      )}
 
       <div className="grid-2">
         <label className="field">

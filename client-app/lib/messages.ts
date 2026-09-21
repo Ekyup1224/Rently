@@ -97,6 +97,8 @@ const en: Record<string, string> = {
   'home.housesSub': 'Whole places to yourself, from gers to city flats.',
   'home.perNight': '/ night',
   'home.fromPrice': 'from {price}',
+  'favorites.add': 'Save to favorites',
+  'favorites.remove': 'Remove from favorites',
 
   // --- search --------------------------------------------------------------
   'search.where': 'Where',
@@ -113,6 +115,7 @@ const en: Record<string, string> = {
   'search.houses': 'Houses',
   'search.hotels': 'Hotels',
   'search.instantOnly': 'Instant book only',
+  'search.starsPlus': '{count}+ stars',
   'search.priceFrom': 'Min price',
   'search.priceTo': 'Max price',
   'search.sort': 'Sort',
@@ -221,6 +224,17 @@ const en: Record<string, string> = {
   'book.checking': 'Checking availability…',
   'book.payNextStep': 'You will pay in the next step. Nothing is charged until then.',
   'book.hostHas24h': 'The host has 24 hours to respond. You only pay once they accept.',
+  'book.selectDates': 'Select dates',
+  'calendar.prevMonth': 'Previous month',
+  'calendar.nextMonth': 'Next month',
+  'calendar.unavailable': 'Unavailable',
+  'calendar.weekday.mon': 'Mo',
+  'calendar.weekday.tue': 'Tu',
+  'calendar.weekday.wed': 'We',
+  'calendar.weekday.thu': 'Th',
+  'calendar.weekday.fri': 'Fr',
+  'calendar.weekday.sat': 'Sa',
+  'calendar.weekday.sun': 'Su',
   'book.messageHostPlaceholder': 'Tell them a little about your trip',
 
   // --- checkout ------------------------------------------------------------
@@ -556,6 +570,8 @@ const mn: Record<string, string> = {
   'home.housesSub': 'Гэрээс хотын байр хүртэл, бүтэн байрыг өөрсдөө.',
   'home.perNight': '/ хоног',
   'home.fromPrice': '{price}-өөс',
+  'favorites.add': 'Хадгалах',
+  'favorites.remove': 'Хадгалснаас хасах',
 
   // --- search --------------------------------------------------------------
   'search.where': 'Хаана',
@@ -572,6 +588,7 @@ const mn: Record<string, string> = {
   'search.houses': 'Байшин',
   'search.hotels': 'Зочид буудал',
   'search.instantOnly': 'Шууд захиалга',
+  'search.starsPlus': '{count}+ одтой',
   'search.priceFrom': 'Доод үнэ',
   'search.priceTo': 'Дээд үнэ',
   'search.sort': 'Эрэмбэ',
@@ -680,6 +697,17 @@ const mn: Record<string, string> = {
   'book.checking': 'Сул эсэхийг шалгаж байна…',
   'book.payNextStep': 'Та дараагийн алхамд төлнө. Түүнээс өмнө юу ч хасагдахгүй.',
   'book.hostHas24h': 'Эзэн 24 цагийн дотор хариу өгнө. Зөвшөөрсөн үед л та төлнө.',
+  'book.selectDates': 'Огноо сонгох',
+  'calendar.prevMonth': 'Өмнөх сар',
+  'calendar.nextMonth': 'Дараагийн сар',
+  'calendar.unavailable': 'Захиалагдсан',
+  'calendar.weekday.mon': 'Да',
+  'calendar.weekday.tue': 'Мя',
+  'calendar.weekday.wed': 'Лх',
+  'calendar.weekday.thu': 'Пү',
+  'calendar.weekday.fri': 'Ба',
+  'calendar.weekday.sat': 'Бя',
+  'calendar.weekday.sun': 'Ня',
   'book.messageHostPlaceholder': 'Аяллынхаа талаар товч бичээрэй',
 
   // --- checkout ------------------------------------------------------------

@@ -8,6 +8,7 @@ import { formatMoney } from '@/lib/format'
 import type { ListingSummary } from '@/lib/types'
 import { useT } from '@/lib/i18n'
 import { RatingBadge } from './Reviews'
+import { FavoriteButton } from './FavoriteButton'
 
 /** How many cards a row shows before sending people to the full results. */
 const PER_ROW = 4
@@ -129,35 +130,38 @@ function StayCard({ stay }: { stay: ListingSummary }) {
        stay.district ?? stay.city].join(' · ')
 
   return (
-    <Link href={`${isHotel ? '/hotels' : '/listings'}/${stay.id}`} className="supply-card">
-      {stay.coverPhotoUrl ? (
-        <Image
-          className="supply-card__image"
-          src={stay.coverPhotoUrl}
-          alt=""
-          width={320}
-          height={240}
-        />
-      ) : (
-        <div className="supply-card__image supply-card__image--empty" aria-hidden="true">
-          {isHotel ? '🏨' : '🏡'}
-        </div>
-      )}
-      <div className="supply-card__body">
-        <strong style={{ display: 'block', fontSize: 14, lineHeight: 1.35 }}>{stay.title}</strong>
-        <p className="muted small" style={{ margin: '2px 0 6px' }}>{detail}</p>
-        <p style={{ margin: '0 0 6px' }}>
-          <RatingBadge average={stay.ratingAverage} count={stay.ratingCount} size="small" />
-        </p>
-        <span className="small">
-          <span className="price">
-            {isHotel
-              ? t('home.fromPrice', { price: formatMoney(stay.nightlyFrom, stay.currency) })
-              : formatMoney(stay.nightlyFrom, stay.currency)}
+    <div className="supply-card-wrap">
+      <FavoriteButton listingId={stay.id} />
+      <Link href={`${isHotel ? '/hotels' : '/listings'}/${stay.id}`} className="supply-card">
+        {stay.coverPhotoUrl ? (
+          <Image
+            className="supply-card__image"
+            src={stay.coverPhotoUrl}
+            alt=""
+            width={320}
+            height={240}
+          />
+        ) : (
+          <div className="supply-card__image supply-card__image--empty" aria-hidden="true">
+            {isHotel ? '🏨' : '🏡'}
+          </div>
+        )}
+        <div className="supply-card__body">
+          <strong style={{ display: 'block', fontSize: 14, lineHeight: 1.35 }}>{stay.title}</strong>
+          <p className="muted small" style={{ margin: '2px 0 6px' }}>{detail}</p>
+          <p style={{ margin: '0 0 6px' }}>
+            <RatingBadge average={stay.ratingAverage} count={stay.ratingCount} size="small" />
+          </p>
+          <span className="small">
+            <span className="price">
+              {isHotel
+                ? t('home.fromPrice', { price: formatMoney(stay.nightlyFrom, stay.currency) })
+                : formatMoney(stay.nightlyFrom, stay.currency)}
+            </span>
+            <span className="muted"> {t('home.perNight')}</span>
           </span>
-          <span className="muted"> {t('home.perNight')}</span>
-        </span>
-      </div>
-    </Link>
+        </div>
+      </Link>
+    </div>
   )
 }

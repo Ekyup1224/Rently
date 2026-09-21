@@ -6,7 +6,7 @@ import type { ThemeConfig } from 'antd'
  * <p>The palette is the guest app's, deliberately. A host who books a stay on
  * Saturday and manages their listing on Monday should recognise the same product,
  * and an admin comparing a listing page against the review queue should not have
- * to translate between two sets of blues.
+ * to translate between two sets of colours.
  *
  * <p>Kept as antd tokens rather than CSS overrides so every component — including
  * the ones these screens have not used yet — inherits it without being restyled
@@ -15,23 +15,23 @@ import type { ThemeConfig } from 'antd'
 
 /** Shared with the guest app's globals.css. Change both together. */
 export const palette = {
-  brand: '#2563eb',
-  brandStrong: '#1d4ed8',
-  brandSoft: '#eaf1ff',
-  accent: '#f59e0b',
-  accentSoft: '#fff5e3',
-  teal: '#0d9488',
-  tealSoft: '#e3f7f4',
+  brand: '#b84b2a',
+  brandStrong: '#943a1f',
+  brandSoft: '#fbe4d9',
+  accent: '#c8860a',
+  accentSoft: '#fbeedd',
+  teal: '#0f8f7d',
+  tealSoft: '#dceeea',
   violet: '#7c3aed',
   rose: '#e11d48',
-  ink: '#0f1729',
-  inkMuted: '#5a6478',
-  line: '#e5e9f0',
+  ink: '#2b211b',
+  inkMuted: '#6b5d54',
+  line: '#e6d8cb',
   surface: '#ffffff',
-  ground: '#f6f8fc',
-  danger: '#dc2626',
-  success: '#059669',
-  warning: '#d97706',
+  ground: '#fbf6f1',
+  danger: '#c23b3b',
+  success: '#0f8f7d',
+  warning: '#a15a00',
 }
 
 /**
@@ -51,8 +51,17 @@ export const chartColours = [
   '#65a30d',
   '#c026d3',
 ]
+// This exact 8-hex set (adjacent order) passed scripts/validate_palette.js from the
+// dataviz skill in --mode light: lightness band, chroma floor, CVD separation (worst
+// adjacent ΔE 10.8 protan/deutan) and the normal-vision floor (worst ΔE 21.1). The
+// gold slot sits under 3:1 contrast by itself — legal only because these charts always
+// carry a legend/tooltip (the relief channel), never color alone. Violet and cyan are
+// kept from the old palette on purpose: a categorical set needs to spread across the
+// hue circle for colour-blind readers, so it is not, and should not be, "all warm".
 
-const FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, "
+// Loaded via index.html — see there for why PT Sans/PT Serif rather than a
+// trendier pairing (shared reasoning with the guest app's layout.tsx).
+const FONT_STACK = "'PT Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, "
   + "'Helvetica Neue', Arial, 'Noto Sans', sans-serif"
 
 export const theme: ThemeConfig = {
@@ -73,8 +82,8 @@ export const theme: ThemeConfig = {
     fontSize: 14,
     // Shadows carry the elevation here, so borders can stay very light without
     // cards dissolving into the background.
-    boxShadow: '0 1px 2px rgba(15, 23, 41, 0.04), 0 8px 24px rgba(37, 99, 235, 0.07)',
-    boxShadowSecondary: '0 1px 2px rgba(15, 23, 41, 0.04), 0 4px 12px rgba(37, 99, 235, 0.06)',
+    boxShadow: '0 1px 2px rgba(43, 33, 27, 0.05), 0 8px 24px rgba(184, 75, 42, 0.09)',
+    boxShadowSecondary: '0 1px 2px rgba(43, 33, 27, 0.05), 0 4px 12px rgba(184, 75, 42, 0.08)',
     wireframe: false,
   },
   components: {
@@ -119,7 +128,7 @@ export const theme: ThemeConfig = {
     Button: {
       controlHeight: 36,
       fontWeight: 550,
-      primaryShadow: '0 1px 2px rgba(37, 99, 235, 0.2)',
+      primaryShadow: '0 1px 2px rgba(184, 75, 42, 0.22)',
     },
     Segmented: {
       itemSelectedBg: palette.surface,
