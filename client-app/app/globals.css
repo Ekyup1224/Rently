@@ -494,9 +494,10 @@ input:disabled { background: var(--ground); color: var(--ink-muted); }
    keep their .field markup so the labels stay readable to a screen reader. */
 .search-bar {
   display: grid;
-  /* where | when | guests | submit. The two date fields became one range
-     picker, so this is four columns rather than five. */
-  grid-template-columns: 1.4fr 1.3fr 0.9fr auto;
+  /* where | when | guests | submit. The three fields share a width: they read
+     as one control split into parts, and an odd one out looks like a mistake
+     rather than a hierarchy. Only the submit button sizes to its own text. */
+  grid-template-columns: 1fr 1fr 1fr auto;
   gap: 12px;
   align-items: end;
 }
