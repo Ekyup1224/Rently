@@ -5,11 +5,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { api, describeError, type Page } from '@/lib/api'
-import { addDays, formatMoney, nightsBetween, todayInUlaanbaatar } from '@/lib/format'
-import type { ListingSummary } from '@/lib/types'
+import { formatDateRange, formatMoney, nightsBetween } from '@/lib/format'
+import type { ListingSummary, PropertyType } from '@/lib/types'
 import { ResultsMap } from './ResultsMap'
 import { RatingBadge } from './Reviews'
-import { useT } from '@/lib/i18n'
+import { FavoriteButton } from './FavoriteButton'
+import { AvailabilityCalendar } from './AvailabilityCalendar'
+import { useLanguage } from '@/lib/i18n'
 
 /**
  * Describes a result in one line, differently for each supply type: a house by its
@@ -46,6 +48,12 @@ function describeSupply(listing: ListingSummary, t: Translate): string {
   return parts.join(' · ')
 }
 
+const PROPERTY_TYPES: PropertyType[] = [
+  'APARTMENT', 'HOUSE', 'GER', 'CABIN', 'VILLA', 'STUDIO', 'TOWNHOUSE', 'GUESTHOUSE',
+]
+
+const STAR_OPTIONS = [3, 4, 5] as const
+
 const SORTS = ['relevance', 'price_asc', 'price_desc', 'newest', 'guests'] as const
 
 /** Sort values are snake_case on the wire; message keys are camelCase. */
@@ -67,13 +75,13 @@ const SORT_KEYS: Record<(typeof SORTS)[number], string> = {
 export function SearchResults() {
   const params = useSearchParams()
   const router = useRouter()
-  const t = useT()
-  const today = todayInUlaanbaatar()
+  const { locale, t } = useLanguage()
 
   const [results, setResults] = useState<Page<ListingSummary> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showMap, setShowMap] = useState(false)
+  const [calendarOpen, setCalendarOpen] = useState(false)
 
   const query = params.get('q') ?? ''
   const checkIn = params.get('checkIn') ?? ''
@@ -82,6 +90,9 @@ export function SearchResults() {
   const maxPrice = params.get('maxPrice') ?? ''
   const instantBook = params.get('instantBook') === 'true'
   const supplyType = params.get('supplyTypes') ?? ''
+  const types = params.getAll('types')
+  const typesKey = types.join(',')
+  const starRating = params.get('starRating') ?? ''
   const sort = params.get('sort') ?? 'relevance'
   const page = Number(params.get('page') ?? '0')
 
@@ -98,6 +109,8 @@ export function SearchResults() {
           checkOut: checkOut || undefined,
           guests: guests ? Number(guests) : undefined,
           supplyTypes: supplyType ? [supplyType] : undefined,
+          types: types.length ? types : undefined,
+          starRating: starRating ? Number(starRating) : undefined,
           maxPrice: maxPrice ? Number(maxPrice) : undefined,
           instantBook: instantBook || undefined,
           sort,
@@ -123,7 +136,12 @@ export function SearchResults() {
     return () => {
       cancelled = true
     }
-  }, [query, checkIn, checkOut, guests, supplyType, maxPrice, instantBook, sort, page])
+    // `types` itself is deliberately left out: `params.getAll` returns a new array
+    // every render, so depending on it directly would re-run this effect (and
+    // re-fetch) on every render. `typesKey` is the same list as a stable string.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, checkIn, checkOut, guests, supplyType, typesKey, starRating, maxPrice,
+      instantBook, sort, page])
 
   /** Rewrites the URL, which is what actually re-runs the search. */
   function update(changes: Record<string, string | null>) {
@@ -139,6 +157,20 @@ export function SearchResults() {
     if (!('page' in changes)) {
       next.delete('page')
     }
+    router.push(`/search?${next.toString()}`)
+  }
+
+  /** Property type is multi-select, so it needs its own add/remove rather than
+   *  `update`'s single-value replace. */
+  function toggleType(type: PropertyType) {
+    const next = new URLSearchParams(params.toString())
+    const selected = next.getAll('types')
+    next.delete('types')
+    const nextSelected = selected.includes(type)
+      ? selected.filter((value) => value !== type)
+      : [...selected, type]
+    nextSelected.forEach((value) => next.append('types', value))
+    next.delete('page')
     router.push(`/search?${next.toString()}`)
   }
 
@@ -160,32 +192,31 @@ export function SearchResults() {
       </p>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="grid-2">
-          <label className="field">
-            <span className="field__label">{t('search.checkIn')}</span>
-            <input
-              type="date"
-              min={today}
-              value={checkIn}
-              onChange={(event) => {
-                const value = event.target.value
-                update({
-                  checkIn: value,
-                  checkOut: value && checkOut <= value ? addDays(value, 2) : checkOut,
-                })
-              }}
-            />
-          </label>
-          <label className="field">
-            <span className="field__label">{t('search.checkOut')}</span>
-            <input
-              type="date"
-              min={checkIn ? addDays(checkIn, 1) : addDays(today, 1)}
-              value={checkOut}
-              onChange={(event) => update({ checkOut: event.target.value })}
-            />
-          </label>
-        </div>
+        <label className="field">
+          <span className="field__label">{t('search.checkIn')} – {t('search.checkOut')}</span>
+          <button
+            type="button"
+            className="avail-cal__trigger"
+            onClick={() => setCalendarOpen((open) => !open)}
+          >
+            {checkIn && checkOut
+              ? formatDateRange(checkIn, checkOut, locale)
+              : t('search.addDates')}
+          </button>
+        </label>
+
+        {calendarOpen && (
+          <AvailabilityCalendar
+            checkIn={checkIn}
+            checkOut={checkOut}
+            onSelect={(nextCheckIn, nextCheckOut) => {
+              update({ checkIn: nextCheckIn, checkOut: nextCheckOut })
+              if (nextCheckIn && nextCheckOut) {
+                setCalendarOpen(false)
+              }
+            }}
+          />
+        )}
         <div className="grid-3">
           <label className="field">
             <span className="field__label">{t('search.guests')}</span>
@@ -238,15 +269,40 @@ export function SearchResults() {
           ))}
         </div>
 
-        <label className="row" style={{ alignItems: 'center', gap: 8 }}>
-          <input
-            type="checkbox"
-            style={{ width: 'auto' }}
-            checked={instantBook}
-            onChange={(event) => update({ instantBook: event.target.checked ? 'true' : null })}
-          />
-          <span className="small">{t('search.instantOnly')}</span>
-        </label>
+        <div className="chip-row" role="group" aria-label={t('search.filters')}>
+          <button
+            type="button"
+            className="chip"
+            aria-pressed={instantBook}
+            onClick={() => update({ instantBook: instantBook ? null : 'true' })}
+          >
+            {t('search.instantOnly')}
+          </button>
+
+          {supplyType !== 'HOTEL' && PROPERTY_TYPES.map((type) => (
+            <button
+              key={type}
+              type="button"
+              className="chip"
+              aria-pressed={types.includes(type)}
+              onClick={() => toggleType(type)}
+            >
+              {t(`type.${type}`)}
+            </button>
+          ))}
+
+          {supplyType === 'HOTEL' && STAR_OPTIONS.map((stars) => (
+            <button
+              key={stars}
+              type="button"
+              className="chip"
+              aria-pressed={starRating === String(stars)}
+              onClick={() => update({ starRating: starRating === String(stars) ? null : String(stars) })}
+            >
+              {t('search.starsPlus', { count: stars })}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && <div className="alert alert--error">{error}</div>}
@@ -281,73 +337,75 @@ export function SearchResults() {
           )}
 
           {results.rows.map((listing) => (
-            <Link
-              key={listing.id}
-              href={`${listing.supplyType === 'HOTEL' ? '/hotels' : '/listings'}/${listing.id}`
-                + (checkIn && checkOut
-                  ? `?checkIn=${checkIn}&checkOut=${checkOut}&guests=${guests || 2}` : '')}
-              className="card"
-              style={{ display: 'flex', gap: 14, marginBottom: 12, textDecoration: 'none',
-                       color: 'inherit' }}
-            >
-              {listing.coverPhotoUrl
-                ? <Image
-                    src={listing.coverPhotoUrl}
-                    alt=""
-                    width={168}
-                    height={120}
-                    style={{ objectFit: 'cover', borderRadius: 10, flexShrink: 0 }}
-                  />
-                : <div className="supply-card__image--empty"
-                       style={{ width: 168, height: 120, borderRadius: 10, flexShrink: 0 }}
-                       aria-hidden="true">
-                    {listing.supplyType === 'HOTEL' ? '🏨' : '🏡'}
-                  </div>}
+            <div key={listing.id} style={{ position: 'relative', marginBottom: 12 }}>
+              <FavoriteButton listingId={listing.id} className="supply-card__fav--row" />
+              <Link
+                href={`${listing.supplyType === 'HOTEL' ? '/hotels' : '/listings'}/${listing.id}`
+                  + (checkIn && checkOut
+                    ? `?checkIn=${checkIn}&checkOut=${checkOut}&guests=${guests || 2}` : '')}
+                className="card"
+                style={{ display: 'flex', gap: 14, textDecoration: 'none',
+                         color: 'inherit' }}
+              >
+                {listing.coverPhotoUrl
+                  ? <Image
+                      src={listing.coverPhotoUrl}
+                      alt=""
+                      width={168}
+                      height={120}
+                      style={{ objectFit: 'cover', borderRadius: 10, flexShrink: 0 }}
+                    />
+                  : <div className="supply-card__image--empty"
+                         style={{ width: 168, height: 120, borderRadius: 10, flexShrink: 0 }}
+                         aria-hidden="true">
+                      {listing.supplyType === 'HOTEL' ? '🏨' : '🏡'}
+                    </div>}
 
-              <div style={{ minWidth: 0 }}>
-                <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-                  <strong>{listing.title}</strong>
-                  {listing.supplyType === 'HOTEL'
-                    ? <span className="tag tag--hotel">{t('search.hotelTag')}</span>
-                    : listing.instantBook
-                      && <span className="tag tag--instant">{t('search.instantTag')}</span>}
-                </div>
-                <p className="muted small" style={{ margin: '4px 0' }}>
-                  {describeSupply(listing, t)}
-                </p>
-                <p style={{ margin: '0 0 4px' }}>
-                  <RatingBadge
-                    average={listing.ratingAverage}
-                    count={listing.ratingCount}
-                    size="small"
-                  />
-                </p>
-                <p style={{ margin: 0 }}>
-                  <strong>
+                <div style={{ minWidth: 0 }}>
+                  <div className="row" style={{ gap: 6, alignItems: 'center' }}>
+                    <strong>{listing.title}</strong>
                     {listing.supplyType === 'HOTEL'
-                      ? t('home.fromPrice', {
-                        price: formatMoney(listing.nightlyFrom, listing.currency),
-                      })
-                      : formatMoney(listing.nightlyFrom, listing.currency)}
-                  </strong>
-                  <span className="muted small"> {t('home.perNight')}</span>
-                  {nights > 0 && (
-                    <span className="muted small">
-                      {' · '}
-                      {t('search.about', {
-                        total: formatMoney(
-                          listing.nightlyFrom * nights + listing.cleaningFee, listing.currency),
-                      })}
-                    </span>
-                  )}
-                </p>
-                {listing.minStayNights > 1 && (
-                  <p className="muted small" style={{ margin: '2px 0 0' }}>
-                    {t('search.minNights', { count: listing.minStayNights })}
+                      ? <span className="tag tag--hotel">{t('search.hotelTag')}</span>
+                      : listing.instantBook
+                        && <span className="tag tag--instant">{t('search.instantTag')}</span>}
+                  </div>
+                  <p className="muted small" style={{ margin: '4px 0' }}>
+                    {describeSupply(listing, t)}
                   </p>
-                )}
-              </div>
-            </Link>
+                  <p style={{ margin: '0 0 4px' }}>
+                    <RatingBadge
+                      average={listing.ratingAverage}
+                      count={listing.ratingCount}
+                      size="small"
+                    />
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    <strong>
+                      {listing.supplyType === 'HOTEL'
+                        ? t('home.fromPrice', {
+                          price: formatMoney(listing.nightlyFrom, listing.currency),
+                        })
+                        : formatMoney(listing.nightlyFrom, listing.currency)}
+                    </strong>
+                    <span className="muted small"> {t('home.perNight')}</span>
+                    {nights > 0 && (
+                      <span className="muted small">
+                        {' · '}
+                        {t('search.about', {
+                          total: formatMoney(
+                            listing.nightlyFrom * nights + listing.cleaningFee, listing.currency),
+                        })}
+                      </span>
+                    )}
+                  </p>
+                  {listing.minStayNights > 1 && (
+                    <p className="muted small" style={{ margin: '2px 0 0' }}>
+                      {t('search.minNights', { count: listing.minStayNights })}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            </div>
           ))}
 
           {results.totalPages > 1 && (

@@ -7,14 +7,14 @@ import type { MetadataRoute } from 'next'
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Stay — houses and hotels in Mongolia',
-    short_name: 'Stay',
+    name: 'Rently — houses and hotels in Mongolia',
+    short_name: 'Rently',
     description: 'Search and book houses, apartments and hotel rooms in one place.',
     start_url: '/',
     display: 'standalone',
     orientation: 'portrait',
     background_color: '#ffffff',
-    theme_color: '#1668dc',
+    theme_color: '#b84b2a',
     lang: 'mn',
     icons: [
       { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

@@ -17,7 +17,7 @@ export function SiteHeader() {
       <div className="site-header__inner">
         <Link href="/" className="brand">
           <Image src="/icon-192.png" alt="" width={28} height={28} className="brand__mark" priority />
-          <span>Stay</span>
+          <span>Rently</span>
         </Link>
 
         <nav className="nav">

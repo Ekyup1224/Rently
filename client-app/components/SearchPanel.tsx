@@ -2,26 +2,28 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { addDays, todayInUlaanbaatar } from '@/lib/format'
-import { useT } from '@/lib/i18n'
+import { formatDateRange } from '@/lib/format'
+import { useLanguage } from '@/lib/i18n'
+import { AvailabilityCalendar } from './AvailabilityCalendar'
 
 /**
  * The landing page's search bar: one row over both supply types, which is the
  * whole premise of the product.
  *
- * <p>Deliberately only four fields. The stays themselves are the point of the
+ * <p>Deliberately only three fields — where, when, how many. The stays
+ * themselves are the point of the
  * landing page, so this stays one row deep and leaves them above the fold;
  * narrowing by type, price, instant-book or sort happens on the results page,
  * against real results rather than guessed at before seeing any.
  */
 export function SearchPanel() {
   const router = useRouter()
-  const t = useT()
-  const today = todayInUlaanbaatar()
+  const { locale, t } = useLanguage()
   const [destination, setDestination] = useState('')
   const [checkIn, setCheckIn] = useState('')
   const [checkOut, setCheckOut] = useState('')
   const [guests, setGuests] = useState('2')
+  const [calendarOpen, setCalendarOpen] = useState(false)
 
   return (
     <div className="card">
@@ -50,32 +52,16 @@ export function SearchPanel() {
           </label>
 
           <label className="field">
-            <span className="field__label">{t('search.checkIn')}</span>
-            <input
-              name="checkIn"
-              type="date"
-              min={today}
-              value={checkIn}
-              onChange={(event) => {
-                setCheckIn(event.target.value)
-                // Keep check-out after check-in so an impossible range is not
-                // even expressible.
-                if (event.target.value && checkOut <= event.target.value) {
-                  setCheckOut(addDays(event.target.value, 2))
-                }
-              }}
-            />
-          </label>
-
-          <label className="field">
-            <span className="field__label">{t('search.checkOut')}</span>
-            <input
-              name="checkOut"
-              type="date"
-              min={checkIn ? addDays(checkIn, 1) : addDays(today, 1)}
-              value={checkOut}
-              onChange={(event) => setCheckOut(event.target.value)}
-            />
+            <span className="field__label">{t('search.checkIn')} – {t('search.checkOut')}</span>
+            <button
+              type="button"
+              className="avail-cal__trigger"
+              onClick={() => setCalendarOpen((open) => !open)}
+            >
+              {checkIn && checkOut
+                ? formatDateRange(checkIn, checkOut, locale)
+                : t('book.selectDates')}
+            </button>
           </label>
 
           <label className="field">
@@ -95,6 +81,22 @@ export function SearchPanel() {
 
           <button type="submit" className="button">{t('search.submit')}</button>
         </div>
+
+        {/* Outside .search-bar: that is a single grid row, and a month grid
+            is not one of its columns. */}
+        {calendarOpen && (
+          <AvailabilityCalendar
+            checkIn={checkIn}
+            checkOut={checkOut}
+            onSelect={(nextCheckIn, nextCheckOut) => {
+              setCheckIn(nextCheckIn)
+              setCheckOut(nextCheckOut)
+              if (nextCheckIn && nextCheckOut) {
+                setCalendarOpen(false)
+              }
+            }}
+          />
+        )}
       </form>
     </div>
   )

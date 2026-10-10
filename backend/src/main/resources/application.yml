@@ -47,10 +47,11 @@ management:
 
 app:
   cors:
-    # Vite admin/owner/hotel portal and Next.js guest PWA
-    allowed-origins:
-      - http://localhost:5173
-      - http://localhost:3000
+    # Vite admin/owner/hotel portal and Next.js guest PWA. Comma-separated so a
+    # deployment can pass its real origins as one environment variable; the
+    # defaults are the local dev servers, and ProductionSafetyCheck rejects them
+    # outside the dev profile so a deploy cannot silently keep them.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
   security:
     jwt:
       issuer: stay-backend

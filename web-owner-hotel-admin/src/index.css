@@ -4,16 +4,16 @@
   color-scheme: light;
 
   /* Mirrors src/theme.ts, for the handful of places that need raw CSS. */
-  --brand: #2563eb;
-  --brand-strong: #1d4ed8;
-  --brand-soft: #eaf1ff;
-  --accent: #f59e0b;
-  --teal: #0d9488;
-  --ink: #0f1729;
-  --ink-muted: #5a6478;
-  --line: #e5e9f0;
+  --brand: #b84b2a;
+  --brand-strong: #943a1f;
+  --brand-soft: #fbe4d9;
+  --accent: #c8860a;
+  --teal: #0f8f7d;
+  --ink: #2b211b;
+  --ink-muted: #6b5d54;
+  --line: #e6d8cb;
   --surface: #ffffff;
-  --ground: #f6f8fc;
+  --ground: #fbf6f1;
 }
 
 body {
@@ -44,7 +44,7 @@ body {
   font-weight: 700;
   font-size: 15px;
   background: linear-gradient(135deg, var(--brand), var(--teal));
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 2px 8px rgba(184, 75, 42, 0.3);
   flex-shrink: 0;
 }
 
@@ -136,7 +136,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 9px 12px;
-  box-shadow: 0 4px 16px rgba(15, 23, 41, 0.1);
+  box-shadow: 0 4px 16px rgba(43, 33, 27, 0.1);
   font-size: 12px;
 }
 

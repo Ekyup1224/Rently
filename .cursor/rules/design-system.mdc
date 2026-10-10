@@ -1,0 +1,79 @@
+---
+description: Rently brand & design system — colors, type, the brand mark, naming rules. Apply to any UI change in client-app or web-owner-hotel-admin.
+globs:
+  - "client-app/**"
+  - "web-owner-hotel-admin/**"
+alwaysApply: true
+---
+
+# Rently brand & design system
+
+Full version: `/DESIGN.md` at the repo root — read it before any non-trivial
+UI change. This file is the condensed always-on summary.
+
+Reuse what's already shipping — a new color, font, or mark is never the
+right first move. If something isn't covered here, match the nearest
+existing pattern in `client-app/app/globals.css` or
+`web-owner-hotel-admin/src/theme.ts` instead of inventing one. Those two
+files (CSS custom properties / the `palette` object) are the actual source
+of truth; this file and `/DESIGN.md` are quick reference and go stale if
+they disagree with the code.
+
+## Naming — read this first
+
+The product's real in-app name is still **"Stay"** (page titles, the PWA
+manifest, the admin sidebar label). "Rently" is the repo/working name only.
+Do not rename "Stay" to "Rently" in any product-facing text unless a human
+explicitly asks for that rename in the current conversation — it's a
+product decision, not a styling one.
+
+## Brand mark
+
+The toono — the roof-crown of a traditional Mongolian ger, not a generic
+house icon. Source SVGs (edit these, never the PNGs):
+`client-app/public/brand/mark.svg` and `mark-mono.svg`, mirrored in
+`web-owner-hotel-admin/public/brand/`. `mark.svg` is flat terracotta,
+full-bleed, no corner rounding baked in. `mark-mono.svg` is outline-only via
+`currentColor`, for sitting on an existing background. Never gradient,
+drop-shadow, outline, or recolor the mark outside its reversed
+(`--ground` on `--brand`) variant.
+
+## Color — semantic tokens only, never raw hex
+
+| Token | Hex | Use |
+|---|---|---|
+| `brand` | `#b84b2a` | Primary actions, the mark, focus rings |
+| `brand-strong` | `#943a1f` | Hover/pressed state of a brand fill |
+| `brand-soft` | `#fbe4d9` | Tinted background behind brand-colored text |
+| `accent` | `#a15a00` (client-app) / `#c8860a` (admin charts) | Secondary highlight |
+| `teal` | `#0f8f7d` | Confirmed/verified/success (never green — collides with `danger` for color-blind readers) |
+| `teal-soft` | `#dceeea` | Tinted background for teal text |
+| `ink` | `#2b211b` | Primary text |
+| `ink-muted` | `#6b5d54` | Secondary/metadata text |
+| `line` | `#e6d8cb` | Borders, dividers |
+| `surface` | `#ffffff` | Cards |
+| `ground` | `#fbf6f1` | Page background |
+| `danger` | `#c23b3b` | Errors, cancellations, destructive actions |
+
+Reach for `var(--brand)` / `palette.brand`, never `#b84b2a` typed inline.
+Shadows are warm-tinted (mixed from ink/brand), never pure black. The admin
+chart palette (`theme.ts`'s `chartColours`) is validated separately with the
+`dataviz` skill's palette checker — don't hand-edit it without re-running
+that validation.
+
+## Type
+
+- **PT Serif** — hero headings and the wordmark only.
+- **PT Sans** — everything else: body copy, labels, buttons, prices.
+
+Never swap in Inter, Roboto, Fraunces, or Plus Jakarta Sans — both fonts
+were chosen specifically for built-in Cyrillic support (`lang="mn"`).
+
+## Shape, spacing, motion
+
+No hard 0 or 4px corners — radius scales with how "held" an element feels
+(chip vs. card vs. sheet); see `--radius*` tokens in `globals.css`. Chips
+invert to a solid `ink` fill when selected, never `brand` — brand stays
+reserved for the one primary action per screen. Motion is for
+confirmations, not decoration: ~150ms ease on hover/press, nothing that
+loops or auto-plays.
