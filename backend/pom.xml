@@ -155,6 +155,19 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<!--
+						`./mvnw spring-boot:run` is the local way to run this, so it gets
+						the dev profile and its conveniences: codes to the log, simulated
+						payments, the published dev secrets. A packaged jar started with
+						`java -jar` gets no profile, so ProductionSafetyCheck runs and
+						refuses to start on any of those. The safe behaviour is the one
+						you get by omission.
+					-->
+					<profiles>
+						<profile>dev</profile>
+					</profiles>
+				</configuration>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
